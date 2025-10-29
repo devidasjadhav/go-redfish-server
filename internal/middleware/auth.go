@@ -11,6 +11,18 @@ import (
 // AuthMiddleware handles authentication for protected endpoints
 func AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Check OData-Version header
+		if odataVersion := r.Header.Get("OData-Version"); odataVersion != "" && odataVersion != "4.0" {
+			http.Error(w, `{"error": {"code": "Base.1.0.InvalidHeader", "message": "Unsupported OData-Version"}}`, http.StatusPreconditionFailed)
+			return
+		}
+
+		// Allow POST to Sessions without authentication for login
+		if r.Method == "POST" && r.URL.Path == "/redfish/v1/SessionService/Sessions" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
 		// Check if authentication is required for this endpoint
 		if !requiresAuth(r.URL.Path) {
 			next.ServeHTTP(w, r)
@@ -49,11 +61,14 @@ func requiresAuth(path string) bool {
 	// Public endpoints that don't require authentication
 	publicPaths := []string{
 		"/health",
+		"/redfish",
+		"/redfish/v1",
 		"/redfish/v1/",
 		"/redfish/v1/$metadata",
 		"/redfish/v1/odata",
 		"/redfish/v1/SessionService",
 		"/redfish/v1/SessionService/Sessions",
+		"/redfish/v1/SessionService/Sessions/Members",
 	}
 
 	for _, publicPath := range publicPaths {

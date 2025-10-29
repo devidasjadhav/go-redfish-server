@@ -152,13 +152,21 @@ func setupRoutes(mux *http.ServeMux) {
 	// OEM endpoints
 	mux.HandleFunc("/redfish/v1/Oem/Contoso/CustomAction", oemCustomActionHandler)
 
-	// Redfish root endpoint - must be last
+	// OpenAPI endpoint
+	mux.HandleFunc("/redfish/v1/openapi.yaml", openapiHandler)
+
+	// Redfish root endpoint
+	mux.HandleFunc("/redfish", redfishRootHandler)
+
+	// Redfish v1 root endpoint - handle both /redfish/v1 and /redfish/v1/
+	mux.HandleFunc("/redfish/v1", serviceRootHandler)
 	mux.HandleFunc("/redfish/v1/", serviceRootHandler)
 }
 
 // healthHandler handles health check requests
 func healthHandler(w http.ResponseWriter, r *http.Request) {
 	setRedfishHeaders(w)
+	w.Header().Set("Allow", "GET")
 
 	switch r.Method {
 	case "GET":
@@ -180,7 +188,77 @@ func handleGetHealth(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(response))
 }
 
+// openapiHandler serves the OpenAPI specification
+func openapiHandler(w http.ResponseWriter, r *http.Request) {
+	setRedfishHeaders(w)
+	w.Header().Set("Allow", "GET")
+
+	switch r.Method {
+	case "GET":
+		handleGetOpenAPI(w, r)
+	default:
+		methodNotAllowed(w, r)
+	}
+}
+
+// handleGetOpenAPI returns the OpenAPI specification
+func handleGetOpenAPI(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/yaml")
+
+	// Basic OpenAPI spec
+	openapi := `openapi: 3.0.0
+info:
+  title: Redfish API
+  version: 1.0.0
+  description: Redfish API specification
+paths:
+  /redfish/v1/:
+    get:
+      summary: Get service root
+      responses:
+        '200':
+          description: OK
+`
+
+	etag := generateETag(openapi)
+	w.Header().Set("ETag", etag)
+
+	// Check conditional GET
+	if ifNoneMatch := r.Header.Get("If-None-Match"); ifNoneMatch != "" {
+		normalizedETag := normalizeETag(etag)
+		normalizedIfNoneMatch := normalizeETag(ifNoneMatch)
+		if normalizedIfNoneMatch == normalizedETag || ifNoneMatch == "*" {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+	}
+
+	w.Write([]byte(openapi))
+}
+
 // serviceRootHandler handles the Redfish service root
+// redfishRootHandler handles requests to /redfish
+func redfishRootHandler(w http.ResponseWriter, r *http.Request) {
+	setRedfishHeaders(w)
+	w.Header().Set("Allow", "GET, HEAD")
+
+	switch r.Method {
+	case "GET":
+		handleGetRedfishRoot(w, r)
+	case "HEAD":
+		handleGetRedfishRoot(w, r)
+	default:
+		methodNotAllowed(w, r)
+	}
+}
+
+// handleGetRedfishRoot returns the redfish root
+func handleGetRedfishRoot(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"v1": "/redfish/v1/"}`))
+}
+
 func serviceRootHandler(w http.ResponseWriter, r *http.Request) {
 	setRedfishHeaders(w)
 	w.Header().Set("Allow", "GET, HEAD")
@@ -240,6 +318,7 @@ func handleGetAccountService(w http.ResponseWriter, r *http.Request) {
 // metadataHandler serves the OData metadata document
 func metadataHandler(w http.ResponseWriter, r *http.Request) {
 	setRedfishHeaders(w)
+	w.Header().Set("Allow", "GET")
 
 	switch r.Method {
 	case "GET":
@@ -252,9 +331,9 @@ func metadataHandler(w http.ResponseWriter, r *http.Request) {
 // handleGetMetadata returns the OData metadata document
 func handleGetMetadata(w http.ResponseWriter, r *http.Request) {
 	setRedfishHeaders(w)
-	w.Header().Set("Content-Type", "application/xml")
+	w.Header().Set("Content-Type", "application/xml;charset=utf-8")
 
-	// Basic metadata document (simplified)
+	// Basic metadata document with EntityContainer
 	metadata := `<?xml version="1.0" encoding="utf-8"?>
 <edmx:Edmx Version="4.0" xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx">
   <edmx:DataServices>
@@ -267,6 +346,17 @@ func handleGetMetadata(w http.ResponseWriter, r *http.Request) {
         <Property Name="Name" Type="Edm.String" Nullable="false" />
         <Property Name="RedfishVersion" Type="Edm.String" Nullable="false" />
       </EntityType>
+      <EntityContainer Name="Service">
+        <EntitySet Name="ServiceRoot" EntityType="Service.ServiceRoot" />
+        <EntitySet Name="Systems" EntityType="ComputerSystemCollection.ComputerSystemCollection" />
+        <EntitySet Name="Chassis" EntityType="ChassisCollection.ChassisCollection" />
+        <EntitySet Name="Managers" EntityType="ManagerCollection.ManagerCollection" />
+        <EntitySet Name="TaskService" EntityType="TaskService.TaskService" />
+        <EntitySet Name="SessionService" EntityType="SessionService.SessionService" />
+        <EntitySet Name="AccountService" EntityType="AccountService.AccountService" />
+        <EntitySet Name="EventService" EntityType="EventService.EventService" />
+        <EntitySet Name="Registries" EntityType="MessageRegistryFileCollection.MessageRegistryFileCollection" />
+      </EntityContainer>
     </Schema>
   </edmx:DataServices>
 </edmx:Edmx>`
@@ -320,6 +410,7 @@ func handleGetOdata(w http.ResponseWriter, r *http.Request) {
 // odataHandler serves the OData service document
 func odataHandler(w http.ResponseWriter, r *http.Request) {
 	setRedfishHeaders(w)
+	w.Header().Set("Allow", "GET")
 
 	switch r.Method {
 	case "GET":
@@ -332,6 +423,7 @@ func odataHandler(w http.ResponseWriter, r *http.Request) {
 // sessionServiceHandler handles the SessionService resource
 func sessionServiceHandler(w http.ResponseWriter, r *http.Request) {
 	setRedfishHeaders(w)
+	w.Header().Set("Allow", "GET")
 
 	switch r.Method {
 	case "GET":
@@ -381,6 +473,7 @@ func handleGetSessionService(w http.ResponseWriter, r *http.Request) {
 // sessionsHandler handles session collection and creation
 func sessionsHandler(w http.ResponseWriter, r *http.Request) {
 	setRedfishHeaders(w)
+	w.Header().Set("Allow", "GET, POST")
 
 	switch r.Method {
 	case "GET":
@@ -388,7 +481,7 @@ func sessionsHandler(w http.ResponseWriter, r *http.Request) {
 	case "POST":
 		handleCreateSession(w, r)
 	default:
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		methodNotAllowed(w, r)
 	}
 }
 
@@ -423,17 +516,34 @@ func handleGetSessions(w http.ResponseWriter, r *http.Request) {
 
 // handleCreateSession creates a new session (login)
 func handleCreateSession(w http.ResponseWriter, r *http.Request) {
-	// For simplicity, use Basic Auth for login
-	// TODO: Support JSON body with UserName/Password
-	username, password, ok := r.BasicAuth()
+	var username, password string
+	var ok bool
+
+	// Try Basic Auth first
+	username, password, ok = r.BasicAuth()
 	if !ok {
-		http.Error(w, `{"error": {"code": "Base.1.0.InsufficientPrivilege", "message": "Basic authentication required"}}`, http.StatusUnauthorized)
+		// Try JSON body with UserName/Password
+		var requestBody struct {
+			UserName string `json:"UserName"`
+			Password string `json:"Password"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&requestBody); err == nil {
+			username = requestBody.UserName
+			password = requestBody.Password
+			ok = true
+		}
+	}
+
+	if !ok || username == "" || password == "" {
+		w.Header().Set("WWW-Authenticate", `Basic realm="Redfish Service"`)
+		http.Error(w, `{"error": {"code": "Base.1.0.InsufficientPrivilege", "message": "Authentication required"}}`, http.StatusUnauthorized)
 		return
 	}
 
 	// Validate credentials
 	authService := auth.GetAuthService()
 	if !authService.ValidateBasicAuth(username, password) {
+		w.Header().Set("WWW-Authenticate", `Basic realm="Redfish Service"`)
 		http.Error(w, `{"error": {"code": "Base.1.0.InsufficientPrivilege", "message": "Invalid credentials"}}`, http.StatusUnauthorized)
 		return
 	}
@@ -464,6 +574,7 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 // accountServiceHandler handles the AccountService resource
 func accountServiceHandler(w http.ResponseWriter, r *http.Request) {
 	setRedfishHeaders(w)
+	w.Header().Set("Allow", "GET, PATCH")
 
 	switch r.Method {
 	case "GET":
@@ -483,6 +594,7 @@ func handleUpdateAccountService(w http.ResponseWriter, r *http.Request) {
 // accountsHandler handles the accounts collection
 func accountsHandler(w http.ResponseWriter, r *http.Request) {
 	setRedfishHeaders(w)
+	w.Header().Set("Allow", "GET, POST")
 
 	switch r.Method {
 	case "GET":
@@ -524,6 +636,7 @@ func handleCreateAccount(w http.ResponseWriter, r *http.Request) {
 // accountHandler handles individual account resources
 func accountHandler(w http.ResponseWriter, r *http.Request) {
 	setRedfishHeaders(w)
+	w.Header().Set("Allow", "GET, PATCH, PUT, DELETE")
 
 	// Extract username from URL path
 	path := r.URL.Path
@@ -656,7 +769,7 @@ func handleGetRole(w http.ResponseWriter, r *http.Request, id string) {
 	case "Operator":
 		role = models.NewRole("Operator", "Operator", []string{"Login", "ConfigureComponents", "ConfigureSelf"}, true)
 	case "ReadOnly":
-		role = models.NewRole("ReadOnly", "ReadOnly", []string{"Login"}, true)
+		role = models.NewRole("ReadOnly", "ReadOnly", []string{"Login", "ConfigureSelf"}, true)
 	default:
 		sendRedfishError(w, "ResourceNotFound", "Role not found", http.StatusNotFound)
 		return
@@ -681,6 +794,7 @@ func handleGetRole(w http.ResponseWriter, r *http.Request, id string) {
 // systemsHandler handles the computer systems collection
 func systemsHandler(w http.ResponseWriter, r *http.Request) {
 	setRedfishHeaders(w)
+	w.Header().Set("Allow", "GET, POST")
 
 	switch r.Method {
 	case "GET":
@@ -734,6 +848,7 @@ func handleCreateSystem(w http.ResponseWriter, r *http.Request) {
 // systemHandler handles individual computer system resources and actions
 func systemHandler(w http.ResponseWriter, r *http.Request) {
 	setRedfishHeaders(w)
+	w.Header().Set("Allow", "GET, PATCH, PUT, DELETE")
 
 	path := r.URL.Path
 
@@ -965,6 +1080,7 @@ func handleComputerSystemReset(w http.ResponseWriter, r *http.Request, systemId 
 // chassisHandler handles the chassis collection
 func chassisHandler(w http.ResponseWriter, r *http.Request) {
 	setRedfishHeaders(w)
+	w.Header().Set("Allow", "GET, POST")
 
 	switch r.Method {
 	case "GET":
@@ -1037,6 +1153,7 @@ func handleCreateChassis(w http.ResponseWriter, r *http.Request) {
 // chassisItemHandler handles individual chassis resources
 func chassisItemHandler(w http.ResponseWriter, r *http.Request) {
 	setRedfishHeaders(w)
+	w.Header().Set("Allow", "GET, PATCH, PUT, DELETE")
 
 	// Extract chassis ID from URL path
 	path := r.URL.Path
@@ -1074,6 +1191,7 @@ func handleDeleteChassis(w http.ResponseWriter, r *http.Request, id string) {
 // managersHandler handles the managers collection
 func managersHandler(w http.ResponseWriter, r *http.Request) {
 	setRedfishHeaders(w)
+	w.Header().Set("Allow", "GET, POST")
 
 	switch r.Method {
 	case "GET":
@@ -1146,6 +1264,7 @@ func handleCreateManager(w http.ResponseWriter, r *http.Request) {
 // managerHandler handles individual manager resources and actions
 func managerHandler(w http.ResponseWriter, r *http.Request) {
 	setRedfishHeaders(w)
+	w.Header().Set("Allow", "GET, PATCH, PUT, DELETE")
 
 	path := r.URL.Path
 
@@ -1618,6 +1737,7 @@ func applyExpandToSystem(system *models.ComputerSystem, expandProps []string) *m
 // eventServiceHandler handles EventService requests
 func eventServiceHandler(w http.ResponseWriter, r *http.Request) {
 	setRedfishHeaders(w)
+	w.Header().Set("Allow", "GET")
 
 	switch r.Method {
 	case "GET":
@@ -1643,6 +1763,7 @@ func handleGetEventService(w http.ResponseWriter, r *http.Request) {
 // eventSubscriptionsHandler handles EventService Subscriptions collection requests
 func eventSubscriptionsHandler(w http.ResponseWriter, r *http.Request) {
 	setRedfishHeaders(w)
+	w.Header().Set("Allow", "GET, POST")
 
 	switch r.Method {
 	case "GET":
@@ -1725,6 +1846,7 @@ func handlePostEventSubscription(w http.ResponseWriter, r *http.Request) {
 // eventSubscriptionHandler handles individual EventSubscription requests
 func eventSubscriptionHandler(w http.ResponseWriter, r *http.Request) {
 	setRedfishHeaders(w)
+	w.Header().Set("Allow", "GET, DELETE")
 
 	// Extract subscription ID from URL
 	path := strings.TrimPrefix(r.URL.Path, "/redfish/v1/EventService/Subscriptions/")
@@ -1761,6 +1883,7 @@ func handleDeleteEventSubscription(w http.ResponseWriter, r *http.Request, id st
 // eventSSEHandler handles Server-Sent Events requests
 func eventSSEHandler(w http.ResponseWriter, r *http.Request) {
 	setRedfishHeaders(w)
+	w.Header().Set("Allow", "GET")
 
 	switch r.Method {
 	case "GET":
@@ -1798,6 +1921,7 @@ func handleGetEventSSE(w http.ResponseWriter, r *http.Request) {
 // registriesHandler handles Registries collection requests
 func registriesHandler(w http.ResponseWriter, r *http.Request) {
 	setRedfishHeaders(w)
+	w.Header().Set("Allow", "GET")
 
 	switch r.Method {
 	case "GET":
@@ -1839,6 +1963,7 @@ func handleGetRegistries(w http.ResponseWriter, r *http.Request) {
 // registryHandler handles individual Registry requests
 func registryHandler(w http.ResponseWriter, r *http.Request) {
 	setRedfishHeaders(w)
+	w.Header().Set("Allow", "GET")
 
 	// Extract registry ID from URL
 	path := strings.TrimPrefix(r.URL.Path, "/redfish/v1/Registries/")
@@ -1884,6 +2009,7 @@ func handleGetRegistry(w http.ResponseWriter, r *http.Request, id string) {
 // oemCustomActionHandler handles OEM custom action requests
 func oemCustomActionHandler(w http.ResponseWriter, r *http.Request) {
 	setRedfishHeaders(w)
+	w.Header().Set("Allow", "POST")
 
 	switch r.Method {
 	case "POST":
@@ -1930,6 +2056,7 @@ func handleOemCustomAction(w http.ResponseWriter, r *http.Request) {
 // taskServiceHandler handles TaskService requests
 func taskServiceHandler(w http.ResponseWriter, r *http.Request) {
 	setRedfishHeaders(w)
+	w.Header().Set("Allow", "GET")
 
 	switch r.Method {
 	case "GET":
@@ -1955,6 +2082,7 @@ func handleGetTaskService(w http.ResponseWriter, r *http.Request) {
 // tasksHandler handles TaskService Tasks collection requests
 func tasksHandler(w http.ResponseWriter, r *http.Request) {
 	setRedfishHeaders(w)
+	w.Header().Set("Allow", "GET, POST")
 
 	switch r.Method {
 	case "GET":
@@ -2034,6 +2162,7 @@ func handlePostTask(w http.ResponseWriter, r *http.Request) {
 // taskHandler handles individual Task requests
 func taskHandler(w http.ResponseWriter, r *http.Request) {
 	setRedfishHeaders(w)
+	w.Header().Set("Allow", "GET, DELETE")
 
 	// Extract task ID from URL
 	path := strings.TrimPrefix(r.URL.Path, "/redfish/v1/TaskService/Tasks/")
