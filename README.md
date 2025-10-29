@@ -4,7 +4,7 @@ A Redfish-compliant server implementation following DSP0266 (Redfish Protocol) a
 
 ## Project Status
 
-**Current Stage:** Stage 2 - Core HTTP Server and TLS Implementation (Completed)
+**Current Stage:** Stage 3 - Authentication and Authorization (In Progress)
 
 ### Completed Stages
 - ✅ Stage 1: Project Setup and Architecture Planning (Completed)
@@ -15,15 +15,16 @@ A Redfish-compliant server implementation following DSP0266 (Redfish Protocol) a
   - Configuration management added
   - Build system configured
 
-- ✅ Stage 2: Core HTTP Server and TLS Implementation (Completed)
-  - HTTPS server with TLS support implemented
+- ✅ Stage 2: Core HTTP Server and TLS Implementation (Completed & Tested)
+  - HTTPS server with TLS 1.3 support implemented
   - Self-signed certificates generated for development
   - CORS middleware added for cross-origin requests
-  - Logging middleware implemented
-  - Redfish-required headers (OData-Version) added
-  - Health check and metadata endpoints implemented
-  - Graceful shutdown handling
-  - Unit tests added
+  - Logging middleware with request timing implemented
+  - Redfish-required headers (OData-Version: 4.0) added
+  - Health check, service root, and metadata endpoints implemented
+  - Graceful shutdown handling with context cancellation
+  - Comprehensive unit tests and integration tests added
+  - **All tests passed** - see [stage2_report.md](stage2_report.md)
 
 ### Upcoming Stages
 - Stage 2: Core HTTP Server and TLS Implementation

@@ -49,7 +49,7 @@ This plan outlines a multi-stage implementation of a Redfish-compliant server in
 - [x] Library choices documented
 
 ## Stage 2: Core HTTP Server and TLS Implementation
-**Status:** Completed  
+**Status:** Completed & Tested  
 **Priority:** High  
 **Dependencies:** Stage 1  
 **Estimated Time:** 2-3 days
@@ -92,7 +92,7 @@ This plan outlines a multi-stage implementation of a Redfish-compliant server in
 - [x] Server handles graceful shutdown
 
 ## Stage 3: Authentication and Authorization
-**Status:** Not Started  
+**Status:** In Progress  
 **Priority:** High  
 **Dependencies:** Stage 2  
 **Estimated Time:** 3-4 days
