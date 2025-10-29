@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/user/redfish-server/internal/auth"
 	"github.com/user/redfish-server/internal/config"
 	"github.com/user/redfish-server/internal/middleware"
+	"github.com/user/redfish-server/internal/models"
 )
 
 // Server represents the Redfish HTTP server
@@ -83,22 +85,32 @@ func setupRoutes(mux *http.ServeMux) {
 	// Health check endpoint
 	mux.HandleFunc("/health", healthHandler)
 
-	// Redfish root endpoint
-	mux.HandleFunc("/redfish/v1/", serviceRootHandler)
-
-	// Redfish metadata endpoint
+	// Redfish endpoints - order matters! More specific routes first
 	mux.HandleFunc("/redfish/v1/$metadata", metadataHandler)
-
-	// Redfish OData service document
 	mux.HandleFunc("/redfish/v1/odata", odataHandler)
 
 	// Session service endpoints
-	mux.HandleFunc("/redfish/v1/SessionService", sessionServiceHandler)
 	mux.HandleFunc("/redfish/v1/SessionService/Sessions", sessionsHandler)
+	mux.HandleFunc("/redfish/v1/SessionService", sessionServiceHandler)
 
 	// Account service endpoints
-	mux.HandleFunc("/redfish/v1/AccountService", accountServiceHandler)
 	mux.HandleFunc("/redfish/v1/AccountService/Accounts", accountsHandler)
+	mux.HandleFunc("/redfish/v1/AccountService", accountServiceHandler)
+
+	// Computer system endpoints
+	mux.HandleFunc("/redfish/v1/Systems/", systemHandler)
+	mux.HandleFunc("/redfish/v1/Systems", systemsHandler)
+
+	// Chassis endpoints
+	mux.HandleFunc("/redfish/v1/Chassis/", chassisItemHandler)
+	mux.HandleFunc("/redfish/v1/Chassis", chassisHandler)
+
+	// Manager endpoints
+	mux.HandleFunc("/redfish/v1/Managers/", managerHandler)
+	mux.HandleFunc("/redfish/v1/Managers", managersHandler)
+
+	// Redfish root endpoint - must be last
+	mux.HandleFunc("/redfish/v1/", serviceRootHandler)
 }
 
 // healthHandler handles health check requests
@@ -114,49 +126,8 @@ func serviceRootHandler(w http.ResponseWriter, r *http.Request) {
 	setRedfishHeaders(w)
 	w.Header().Set("Content-Type", "application/json")
 
-	response := `{
-		"@odata.context": "/redfish/v1/$metadata#ServiceRoot.ServiceRoot",
-		"@odata.id": "/redfish/v1/",
-		"@odata.type": "#ServiceRoot.v1_15_0.ServiceRoot",
-		"Id": "RootService",
-		"Name": "Root Service",
-		"RedfishVersion": "1.15.0",
-		"UUID": "00000000-0000-0000-0000-000000000000",
-		"Systems": {
-			"@odata.id": "/redfish/v1/Systems"
-		},
-		"Chassis": {
-			"@odata.id": "/redfish/v1/Chassis"
-		},
-		"Managers": {
-			"@odata.id": "/redfish/v1/Managers"
-		},
-		"Tasks": {
-			"@odata.id": "/redfish/v1/TaskService"
-		},
-		"SessionService": {
-			"@odata.id": "/redfish/v1/SessionService"
-		},
-		"AccountService": {
-			"@odata.id": "/redfish/v1/AccountService"
-		},
-		"EventService": {
-			"@odata.id": "/redfish/v1/EventService"
-		},
-		"Registries": {
-			"@odata.id": "/redfish/v1/Registries"
-		},
-		"JsonSchemas": {
-			"@odata.id": "/redfish/v1/JsonSchemas"
-		},
-		"Links": {
-			"Sessions": {
-				"@odata.id": "/redfish/v1/SessionService/Sessions"
-			}
-		}
-	}`
-
-	w.Write([]byte(response))
+	serviceRoot := models.NewServiceRoot()
+	json.NewEncoder(w).Encode(serviceRoot)
 }
 
 // metadataHandler serves the OData metadata document
@@ -302,23 +273,8 @@ func accountServiceHandler(w http.ResponseWriter, r *http.Request) {
 	setRedfishHeaders(w)
 	w.Header().Set("Content-Type", "application/json")
 
-	response := `{
-		"@odata.context": "/redfish/v1/$metadata#AccountService.AccountService",
-		"@odata.id": "/redfish/v1/AccountService",
-		"@odata.type": "#AccountService.v1_10_2.AccountService",
-		"Id": "AccountService",
-		"Name": "Account Service",
-		"Status": {
-			"State": "Enabled",
-			"Health": "OK"
-		},
-		"ServiceEnabled": true,
-		"Accounts": {
-			"@odata.id": "/redfish/v1/AccountService/Accounts"
-		}
-	}`
-
-	w.Write([]byte(response))
+	accountService := models.NewAccountService()
+	json.NewEncoder(w).Encode(accountService)
 }
 
 // accountsHandler handles the accounts collection
@@ -335,32 +291,77 @@ func accountsHandler(w http.ResponseWriter, r *http.Request) {
 
 // handleGetAccounts returns the accounts collection
 func handleGetAccounts(w http.ResponseWriter, r *http.Request) {
-	authService := auth.GetAuthService()
-	users := authService.ListUsers()
-
+	setRedfishHeaders(w)
 	w.Header().Set("Content-Type", "application/json")
 
-	// Build members array
-	members := ""
-	for i, user := range users {
-		if i > 0 {
-			members += ","
-		}
-		members += fmt.Sprintf(`{
-			"@odata.id": "/redfish/v1/AccountService/Accounts/%s"
-		}`, user.Username)
-	}
+	accounts := models.NewManagerAccountCollection()
+	json.NewEncoder(w).Encode(accounts)
+}
 
-	response := fmt.Sprintf(`{
-		"@odata.context": "/redfish/v1/$metadata#ManagerAccountCollection.ManagerAccountCollection",
-		"@odata.id": "/redfish/v1/AccountService/Accounts",
-		"@odata.type": "#ManagerAccountCollection.ManagerAccountCollection",
-		"Name": "Accounts Collection",
-		"Members": [%s],
-		"Members@odata.count": %d
-	}`, members, len(users))
+// systemsHandler handles the computer systems collection
+func systemsHandler(w http.ResponseWriter, r *http.Request) {
+	setRedfishHeaders(w)
+	w.Header().Set("Content-Type", "application/json")
 
-	w.Write([]byte(response))
+	systems := models.NewComputerSystemCollection()
+	json.NewEncoder(w).Encode(systems)
+}
+
+// systemHandler handles individual computer system resources
+func systemHandler(w http.ResponseWriter, r *http.Request) {
+	setRedfishHeaders(w)
+	w.Header().Set("Content-Type", "application/json")
+
+	// Extract system ID from URL path
+	path := r.URL.Path
+	id := path[len("/redfish/v1/Systems/"):]
+
+	system := models.NewComputerSystem(id)
+	json.NewEncoder(w).Encode(system)
+}
+
+// chassisHandler handles the chassis collection
+func chassisHandler(w http.ResponseWriter, r *http.Request) {
+	setRedfishHeaders(w)
+	w.Header().Set("Content-Type", "application/json")
+
+	chassis := models.NewChassisCollection()
+	json.NewEncoder(w).Encode(chassis)
+}
+
+// chassisItemHandler handles individual chassis resources
+func chassisItemHandler(w http.ResponseWriter, r *http.Request) {
+	setRedfishHeaders(w)
+	w.Header().Set("Content-Type", "application/json")
+
+	// Extract chassis ID from URL path
+	path := r.URL.Path
+	id := path[len("/redfish/v1/Chassis/"):]
+
+	chassis := models.NewChassis(id)
+	json.NewEncoder(w).Encode(chassis)
+}
+
+// managersHandler handles the managers collection
+func managersHandler(w http.ResponseWriter, r *http.Request) {
+	setRedfishHeaders(w)
+	w.Header().Set("Content-Type", "application/json")
+
+	managers := models.NewManagerCollection()
+	json.NewEncoder(w).Encode(managers)
+}
+
+// managerHandler handles individual manager resources
+func managerHandler(w http.ResponseWriter, r *http.Request) {
+	setRedfishHeaders(w)
+	w.Header().Set("Content-Type", "application/json")
+
+	// Extract manager ID from URL path
+	path := r.URL.Path
+	id := path[len("/redfish/v1/Managers/"):]
+
+	manager := models.NewManager(id)
+	json.NewEncoder(w).Encode(manager)
 }
 
 // setRedfishHeaders sets common Redfish headers
