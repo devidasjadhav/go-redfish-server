@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/user/redfish-server/internal/config"
+	"github.com/user/redfish-server/internal/middleware"
 )
 
 // Server represents the Redfish HTTP server
@@ -25,9 +26,13 @@ func New(cfg *config.Config) (*Server, error) {
 	mux := http.NewServeMux()
 	setupRoutes(mux)
 
+	// Apply middleware
+	handler := middleware.CORSMiddleware(mux)
+	handler = middleware.LoggingMiddleware(handler)
+
 	httpServer := &http.Server{
 		Addr:         cfg.Server.Address,
-		Handler:      mux,
+		Handler:      handler,
 		ReadTimeout:  time.Duration(cfg.Server.ReadTimeout) * time.Second,
 		WriteTimeout: time.Duration(cfg.Server.WriteTimeout) * time.Second,
 	}
@@ -52,9 +57,14 @@ func New(cfg *config.Config) (*Server, error) {
 
 // Start starts the server
 func (s *Server) Start() error {
+	fmt.Printf("Starting Redfish server on %s (TLS: %t)\n", s.config.Server.Address, s.config.TLS.Enabled)
+
 	if s.config.TLS.Enabled {
+		fmt.Printf("TLS certificates: %s, %s\n", s.config.TLS.CertFile, s.config.TLS.KeyFile)
 		return s.httpServer.ListenAndServeTLS("", "")
 	}
+
+	fmt.Println("WARNING: TLS is disabled. Redfish requires TLS in production!")
 	return s.httpServer.ListenAndServe()
 }
 
@@ -73,19 +83,26 @@ func setupRoutes(mux *http.ServeMux) {
 
 	// Redfish root endpoint
 	mux.HandleFunc("/redfish/v1/", serviceRootHandler)
+
+	// Redfish metadata endpoint
+	mux.HandleFunc("/redfish/v1/$metadata", metadataHandler)
+
+	// Redfish OData service document
+	mux.HandleFunc("/redfish/v1/odata", odataHandler)
 }
 
 // healthHandler handles health check requests
 func healthHandler(w http.ResponseWriter, r *http.Request) {
+	setRedfishHeaders(w)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"status": "ok"}`))
+	w.Write([]byte(`{"status": "ok", "service": "redfish-server"}`))
 }
 
 // serviceRootHandler handles the Redfish service root
 func serviceRootHandler(w http.ResponseWriter, r *http.Request) {
+	setRedfishHeaders(w)
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("OData-Version", "4.0")
 
 	response := `{
 		"@odata.context": "/redfish/v1/$metadata#ServiceRoot.ServiceRoot",
@@ -130,4 +147,53 @@ func serviceRootHandler(w http.ResponseWriter, r *http.Request) {
 	}`
 
 	w.Write([]byte(response))
+}
+
+// metadataHandler serves the OData metadata document
+func metadataHandler(w http.ResponseWriter, r *http.Request) {
+	setRedfishHeaders(w)
+	w.Header().Set("Content-Type", "application/xml")
+
+	// Basic metadata document (simplified)
+	metadata := `<?xml version="1.0" encoding="utf-8"?>
+<edmx:Edmx Version="4.0" xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx">
+  <edmx:DataServices>
+    <Schema Namespace="Service" xmlns="http://docs.oasis-open.org/odata/ns/edm">
+      <EntityType Name="ServiceRoot">
+        <Key>
+          <PropertyRef Name="Id" />
+        </Key>
+        <Property Name="Id" Type="Edm.String" Nullable="false" />
+        <Property Name="Name" Type="Edm.String" Nullable="false" />
+        <Property Name="RedfishVersion" Type="Edm.String" Nullable="false" />
+      </EntityType>
+    </Schema>
+  </edmx:DataServices>
+</edmx:Edmx>`
+
+	w.Write([]byte(metadata))
+}
+
+// odataHandler serves the OData service document
+func odataHandler(w http.ResponseWriter, r *http.Request) {
+	setRedfishHeaders(w)
+	w.Header().Set("Content-Type", "application/json")
+
+	response := `{
+		"@odata.context": "/redfish/v1/$metadata",
+		"value": [
+			{
+				"name": "ServiceRoot",
+				"url": "/redfish/v1/"
+			}
+		]
+	}`
+
+	w.Write([]byte(response))
+}
+
+// setRedfishHeaders sets common Redfish headers
+func setRedfishHeaders(w http.ResponseWriter) {
+	w.Header().Set("OData-Version", "4.0")
+	w.Header().Set("Cache-Control", "no-cache")
 }
