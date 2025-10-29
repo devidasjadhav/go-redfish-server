@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/user/redfish-server/internal/auth"
@@ -18,11 +19,18 @@ import (
 	"github.com/user/redfish-server/internal/models"
 )
 
+// Global task storage for demo purposes
+var (
+	tasksMutex sync.RWMutex
+	tasks      = make(map[string]*models.Task)
+)
+
 // Server represents the Redfish HTTP server
 type Server struct {
 	httpServer    *http.Server
 	config        *config.Config
 	subscriptions map[string]*models.EventSubscription // In-memory storage for demo
+	tasks         map[string]*models.Task              // In-memory storage for demo
 }
 
 // New creates a new Redfish server instance
@@ -62,6 +70,7 @@ func New(cfg *config.Config) (*Server, error) {
 		httpServer:    httpServer,
 		config:        cfg,
 		subscriptions: make(map[string]*models.EventSubscription),
+		tasks:         make(map[string]*models.Task),
 	}, nil
 }
 
@@ -128,6 +137,11 @@ func setupRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/redfish/v1/EventService/Subscriptions", eventSubscriptionsHandler)
 	mux.HandleFunc("/redfish/v1/EventService/SSE", eventSSEHandler)
 	mux.HandleFunc("/redfish/v1/EventService", eventServiceHandler)
+
+	// Task service endpoints
+	mux.HandleFunc("/redfish/v1/TaskService/Tasks/", taskHandler)
+	mux.HandleFunc("/redfish/v1/TaskService/Tasks", tasksHandler)
+	mux.HandleFunc("/redfish/v1/TaskService", taskServiceHandler)
 
 	// Redfish root endpoint - must be last
 	mux.HandleFunc("/redfish/v1/", serviceRootHandler)
@@ -804,9 +818,47 @@ func handleComputerSystemReset(w http.ResponseWriter, r *http.Request, systemId 
 		return
 	}
 
-	// In a real implementation, this would trigger the actual reset
-	// For demo purposes, we just return success
-	w.WriteHeader(http.StatusNoContent)
+	// Create a task for the reset operation
+	id := fmt.Sprintf("%x", md5.Sum([]byte(fmt.Sprintf("reset-%s-%s-%s", systemId, resetType, time.Now().String()))))[:8]
+
+	task := models.NewTask(id, "POST", fmt.Sprintf("/redfish/v1/Systems/%s/Actions/ComputerSystem.Reset", systemId))
+	task.Payload.JsonBody = fmt.Sprintf(`{"ResetType": "%s"}`, resetType)
+
+	// Simulate asynchronous reset operation
+	go func() {
+		time.Sleep(3 * time.Second) // Simulate reset time
+		tasksMutex.Lock()
+		task.UpdateTaskState("Completed")
+		task.SetPercentComplete(100)
+		task.AddMessage(models.Message{
+			MessageID:  "Base.1.12.Success",
+			Message:    fmt.Sprintf("Computer system %s reset (%s) completed successfully", systemId, resetType),
+			Severity:   "OK",
+			Resolution: "No action required",
+		})
+		tasksMutex.Unlock()
+	}()
+
+	tasksMutex.Lock()
+	tasks[id] = task
+	tasksMutex.Unlock()
+
+	// Return the task location
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Location", string(task.ODataID))
+	w.WriteHeader(http.StatusAccepted)
+
+	response := map[string]interface{}{
+		"@odata.id":   task.ODataID,
+		"@odata.type": task.ODataType,
+		"Id":          task.ID,
+		"Name":        task.Name,
+	}
+
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }
 
 // chassisHandler handles the chassis collection
@@ -1130,9 +1182,47 @@ func handleManagerReset(w http.ResponseWriter, r *http.Request, managerId string
 		return
 	}
 
-	// In a real implementation, this would trigger the actual manager reset
-	// For demo purposes, we just return success
-	w.WriteHeader(http.StatusNoContent)
+	// Create a task for the manager reset operation
+	id := fmt.Sprintf("%x", md5.Sum([]byte(fmt.Sprintf("mgr-reset-%s-%s-%s", managerId, resetType, time.Now().String()))))[:8]
+
+	task := models.NewTask(id, "POST", fmt.Sprintf("/redfish/v1/Managers/%s/Actions/Manager.Reset", managerId))
+	task.Payload.JsonBody = fmt.Sprintf(`{"ResetType": "%s"}`, resetType)
+
+	// Simulate asynchronous manager reset operation
+	go func() {
+		time.Sleep(5 * time.Second) // Simulate longer reset time for manager
+		tasksMutex.Lock()
+		task.UpdateTaskState("Completed")
+		task.SetPercentComplete(100)
+		task.AddMessage(models.Message{
+			MessageID:  "Base.1.12.Success",
+			Message:    fmt.Sprintf("Manager %s reset (%s) completed successfully", managerId, resetType),
+			Severity:   "OK",
+			Resolution: "No action required",
+		})
+		tasksMutex.Unlock()
+	}()
+
+	tasksMutex.Lock()
+	tasks[id] = task
+	tasksMutex.Unlock()
+
+	// Return the task location
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Location", string(task.ODataID))
+	w.WriteHeader(http.StatusAccepted)
+
+	response := map[string]interface{}{
+		"@odata.id":   task.ODataID,
+		"@odata.type": task.ODataType,
+		"Id":          task.ID,
+		"Name":        task.Name,
+	}
+
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }
 
 // setRedfishHeaders sets common Redfish headers
@@ -1600,4 +1690,169 @@ func handleGetEventSSE(w http.ResponseWriter, r *http.Request) {
 
 	// Close the connection after a short time for demo purposes
 	time.Sleep(1 * time.Second)
+}
+
+// taskServiceHandler handles TaskService requests
+func taskServiceHandler(w http.ResponseWriter, r *http.Request) {
+	setRedfishHeaders(w)
+
+	switch r.Method {
+	case "GET":
+		handleGetTaskService(w, r)
+	default:
+		methodNotAllowed(w, r)
+	}
+}
+
+// handleGetTaskService returns the TaskService resource
+func handleGetTaskService(w http.ResponseWriter, r *http.Request) {
+	taskService := models.NewTaskService()
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	if err := json.NewEncoder(w).Encode(taskService); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
+// tasksHandler handles TaskService Tasks collection requests
+func tasksHandler(w http.ResponseWriter, r *http.Request) {
+	setRedfishHeaders(w)
+
+	switch r.Method {
+	case "GET":
+		handleGetTasks(w, r)
+	case "POST":
+		handlePostTask(w, r)
+	default:
+		methodNotAllowed(w, r)
+	}
+}
+
+// handleGetTasks returns the Tasks collection
+func handleGetTasks(w http.ResponseWriter, r *http.Request) {
+	tasksMutex.RLock()
+	defer tasksMutex.RUnlock()
+
+	members := make([]models.ODataID, 0, len(tasks))
+	for _, task := range tasks {
+		members = append(members, task.ODataID)
+	}
+
+	collection := models.Collection{
+		ODataContext:      "/redfish/v1/$metadata#TaskCollection.TaskCollection",
+		ODataID:           "/redfish/v1/TaskService/Tasks",
+		ODataType:         "#TaskCollection.TaskCollection",
+		Name:              "Task Collection",
+		Members:           members,
+		MembersODataCount: len(members),
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	if err := json.NewEncoder(w).Encode(collection); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
+// handlePostTask creates a new task
+func handlePostTask(w http.ResponseWriter, r *http.Request) {
+	// For demo purposes, create a simple task
+	// In a real implementation, this would parse task creation parameters
+	id := fmt.Sprintf("%x", md5.Sum([]byte(time.Now().String())))[:8]
+
+	task := models.NewTask(id, "POST", "/redfish/v1/TaskService/Tasks")
+
+	// Simulate task execution
+	go func() {
+		time.Sleep(2 * time.Second) // Simulate work
+		tasksMutex.Lock()
+		task.UpdateTaskState("Running")
+		task.SetPercentComplete(50)
+		tasksMutex.Unlock()
+
+		time.Sleep(2 * time.Second) // More work
+		tasksMutex.Lock()
+		task.UpdateTaskState("Completed")
+		task.SetPercentComplete(100)
+		tasksMutex.Unlock()
+	}()
+
+	tasksMutex.Lock()
+	tasks[id] = task
+	tasksMutex.Unlock()
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Location", string(task.ODataID))
+	w.WriteHeader(http.StatusCreated)
+
+	if err := json.NewEncoder(w).Encode(task); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
+// taskHandler handles individual Task requests
+func taskHandler(w http.ResponseWriter, r *http.Request) {
+	setRedfishHeaders(w)
+
+	// Extract task ID from URL
+	path := strings.TrimPrefix(r.URL.Path, "/redfish/v1/TaskService/Tasks/")
+	parts := strings.Split(path, "/")
+	id := parts[0]
+
+	if id == "" {
+		http.Error(w, "Task ID required", http.StatusBadRequest)
+		return
+	}
+
+	switch r.Method {
+	case "GET":
+		handleGetTask(w, r, id)
+	case "DELETE":
+		handleDeleteTask(w, r, id)
+	default:
+		methodNotAllowed(w, r)
+	}
+}
+
+// handleGetTask returns a specific task
+func handleGetTask(w http.ResponseWriter, r *http.Request, id string) {
+	tasksMutex.RLock()
+	task, exists := tasks[id]
+	tasksMutex.RUnlock()
+
+	if !exists {
+		http.Error(w, "Task not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	if err := json.NewEncoder(w).Encode(task); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
+// handleDeleteTask deletes a task
+func handleDeleteTask(w http.ResponseWriter, r *http.Request, id string) {
+	tasksMutex.Lock()
+	_, exists := tasks[id]
+	if exists {
+		delete(tasks, id)
+	}
+	tasksMutex.Unlock()
+
+	if !exists {
+		http.Error(w, "Task not found", http.StatusNotFound)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }

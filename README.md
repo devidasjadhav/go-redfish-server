@@ -4,7 +4,7 @@ A Redfish-compliant server implementation following DSP0266 (Redfish Protocol) a
 
 ## Project Status
 
-**Current Stage:** Stage 8 - Eventing System (Completed)
+**Current Stage:** Stage 9 - Asynchronous Operations (Tasks) (Completed)
 
 ### Completed Stages
 - ✅ Stage 1: Project Setup and Architecture Planning (Completed)
@@ -74,8 +74,16 @@ A Redfish-compliant server implementation following DSP0266 (Redfish Protocol) a
   - Comprehensive eventing tests with validation
   - **All eventing tests passed** - see [stage8_report.md](stage8_report.md)
 
+- ✅ Stage 9: Asynchronous Operations (Tasks) (Completed & Tested)
+  - Task and TaskService data models with full Redfish schema compliance
+  - TaskService endpoints with configuration and task lifecycle management
+  - Task collection and individual task CRUD operations
+  - Asynchronous task execution with status monitoring and progress tracking
+  - Integration with existing actions (ComputerSystem.Reset, Manager.Reset)
+  - Comprehensive task testing with lifecycle validation
+  - **All task tests passed** - see [stage9_report.md](stage9_report.md)
+
 ### Upcoming Stages
-- Stage 9: Asynchronous Operations (Tasks)
 - Stage 10: OEM Extensions and Registries
 - Stage 11: Testing and Conformance Validation
 
@@ -128,6 +136,11 @@ The server implements the following Redfish API endpoints:
 - `GET /redfish/v1/EventService/Subscriptions/{id}` - Individual event subscription
 - `DELETE /redfish/v1/EventService/Subscriptions/{id}` - Delete event subscription
 - `GET /redfish/v1/EventService/SSE` - Server-Sent Events stream
+- `GET /redfish/v1/TaskService` - Task service configuration
+- `GET /redfish/v1/TaskService/Tasks` - Tasks collection
+- `POST /redfish/v1/TaskService/Tasks` - Create new task
+- `GET /redfish/v1/TaskService/Tasks/{id}` - Individual task status
+- `DELETE /redfish/v1/TaskService/Tasks/{id}` - Delete completed task
 
 ### Supported Features
 - ✅ HTTP Basic Authentication
@@ -140,6 +153,8 @@ The server implements the following Redfish API endpoints:
 - ✅ ActionInfo metadata for action parameters
 - ✅ Redfish Eventing System with subscriptions and SSE
 - ✅ Event filtering and routing framework
+- ✅ Redfish Task Service for asynchronous operations
+- ✅ Task lifecycle management with progress tracking
 
 ## Technology Choices
 
