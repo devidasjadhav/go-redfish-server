@@ -601,12 +601,19 @@ func handleCreateSystem(w http.ResponseWriter, r *http.Request) {
 	sendRedfishError(w, "MethodNotAllowed", "ComputerSystem creation not supported", http.StatusMethodNotAllowed)
 }
 
-// systemHandler handles individual computer system resources
+// systemHandler handles individual computer system resources and actions
 func systemHandler(w http.ResponseWriter, r *http.Request) {
 	setRedfishHeaders(w)
 
-	// Extract system ID from URL path
 	path := r.URL.Path
+
+	// Check if this is an action request
+	if strings.Contains(path, "/Actions/") {
+		handleSystemAction(w, r, path)
+		return
+	}
+
+	// Extract system ID from URL path
 	id := path[len("/redfish/v1/Systems/"):]
 
 	switch r.Method {
@@ -678,6 +685,113 @@ func handleReplaceSystem(w http.ResponseWriter, r *http.Request, id string) {
 func handleDeleteSystem(w http.ResponseWriter, r *http.Request, id string) {
 	// Computer systems are typically not deleted in Redfish
 	sendRedfishError(w, "MethodNotAllowed", "ComputerSystem deletion not supported", http.StatusMethodNotAllowed)
+}
+
+// handleSystemAction handles ComputerSystem actions
+func handleSystemAction(w http.ResponseWriter, r *http.Request, path string) {
+	// Extract action from path: /redfish/v1/Systems/{id}/Actions/{ActionName}
+	parts := strings.Split(path, "/")
+	if len(parts) < 7 || parts[5] != "Actions" {
+		sendRedfishError(w, "InvalidAction", "Invalid action URI format", http.StatusBadRequest)
+		return
+	}
+
+	actionName := parts[6]
+	systemId := parts[4]
+
+	switch r.Method {
+	case "GET":
+		switch actionName {
+		case "ComputerSystem.Reset":
+			handleComputerSystemResetActionInfo(w, r, systemId)
+		default:
+			sendRedfishError(w, "ActionNotSupported", fmt.Sprintf("Action %s not supported for ComputerSystem", actionName), http.StatusBadRequest)
+		}
+	case "POST":
+		switch actionName {
+		case "ComputerSystem.Reset":
+			handleComputerSystemReset(w, r, systemId)
+		default:
+			sendRedfishError(w, "ActionNotSupported", fmt.Sprintf("Action %s not supported for ComputerSystem", actionName), http.StatusBadRequest)
+		}
+	default:
+		methodNotAllowed(w, r)
+	}
+}
+
+// handleComputerSystemResetActionInfo returns ActionInfo for ComputerSystem.Reset
+func handleComputerSystemResetActionInfo(w http.ResponseWriter, r *http.Request, systemId string) {
+	w.Header().Set("Content-Type", "application/json")
+
+	response := map[string]interface{}{
+		"@odata.context": "/redfish/v1/$metadata#ActionInfo.ActionInfo",
+		"@odata.id":      fmt.Sprintf("/redfish/v1/Systems/%s/Actions/ComputerSystem.Reset", systemId),
+		"@odata.type":    "#ActionInfo.v1_1_2.ActionInfo",
+		"Id":             "ComputerSystem.Reset",
+		"Name":           "Computer System Reset",
+		"Parameters": []map[string]interface{}{
+			{
+				"Name":            "ResetType",
+				"Required":        false,
+				"DataType":        "String",
+				"AllowableValues": []string{"On", "ForceOff", "ForceRestart", "Nmi", "PushPowerButton", "GracefulRestart", "GracefulShutdown", "ForceOn"},
+			},
+		},
+	}
+
+	etag := generateETag(response)
+	w.Header().Set("ETag", etag)
+
+	// Check conditional GET
+	if ifNoneMatch := r.Header.Get("If-None-Match"); ifNoneMatch != "" {
+		normalizedETag := normalizeETag(etag)
+		normalizedIfNoneMatch := normalizeETag(ifNoneMatch)
+		if normalizedIfNoneMatch == normalizedETag || ifNoneMatch == "*" {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+	}
+
+	json.NewEncoder(w).Encode(response)
+}
+
+// handleComputerSystemReset handles the ComputerSystem.Reset action
+func handleComputerSystemReset(w http.ResponseWriter, r *http.Request, systemId string) {
+	// Parse request body for ResetType parameter
+	var requestBody struct {
+		ResetType string `json:"ResetType"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&requestBody); err != nil && err.Error() != "EOF" {
+		sendRedfishError(w, "MalformedJSON", "Invalid JSON in request body", http.StatusBadRequest)
+		return
+	}
+
+	// Validate ResetType parameter
+	validResetTypes := map[string]bool{
+		"On":               true,
+		"ForceOff":         true,
+		"ForceRestart":     true,
+		"Nmi":              true,
+		"PushPowerButton":  true,
+		"GracefulRestart":  true,
+		"GracefulShutdown": true,
+		"ForceOn":          true,
+	}
+
+	resetType := requestBody.ResetType
+	if resetType == "" {
+		resetType = "On" // Default reset type
+	}
+
+	if !validResetTypes[resetType] {
+		sendRedfishError(w, "InvalidParameter", fmt.Sprintf("Invalid ResetType: %s", resetType), http.StatusBadRequest)
+		return
+	}
+
+	// In a real implementation, this would trigger the actual reset
+	// For demo purposes, we just return success
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // chassisHandler handles the chassis collection
@@ -861,12 +975,19 @@ func handleCreateManager(w http.ResponseWriter, r *http.Request) {
 	sendRedfishError(w, "MethodNotAllowed", "Manager creation not supported", http.StatusMethodNotAllowed)
 }
 
-// managerHandler handles individual manager resources
+// managerHandler handles individual manager resources and actions
 func managerHandler(w http.ResponseWriter, r *http.Request) {
 	setRedfishHeaders(w)
 
-	// Extract manager ID from URL path
 	path := r.URL.Path
+
+	// Check if this is an action request
+	if strings.Contains(path, "/Actions/") {
+		handleManagerAction(w, r, path)
+		return
+	}
+
+	// Extract manager ID from URL path
 	id := path[len("/redfish/v1/Managers/"):]
 
 	switch r.Method {
@@ -896,6 +1017,107 @@ func handleReplaceManager(w http.ResponseWriter, r *http.Request, id string) {
 // handleDeleteManager deletes a manager
 func handleDeleteManager(w http.ResponseWriter, r *http.Request, id string) {
 	sendRedfishError(w, "MethodNotAllowed", "Manager deletion not supported", http.StatusMethodNotAllowed)
+}
+
+// handleManagerAction handles Manager actions
+func handleManagerAction(w http.ResponseWriter, r *http.Request, path string) {
+	// Extract action from path: /redfish/v1/Managers/{id}/Actions/{ActionName}
+	parts := strings.Split(path, "/")
+	if len(parts) < 7 || parts[5] != "Actions" {
+		sendRedfishError(w, "InvalidAction", "Invalid action URI format", http.StatusBadRequest)
+		return
+	}
+
+	actionName := parts[6]
+	managerId := parts[4]
+
+	switch r.Method {
+	case "GET":
+		switch actionName {
+		case "Manager.Reset":
+			handleManagerResetActionInfo(w, r, managerId)
+		default:
+			sendRedfishError(w, "ActionNotSupported", fmt.Sprintf("Action %s not supported for Manager", actionName), http.StatusBadRequest)
+		}
+	case "POST":
+		switch actionName {
+		case "Manager.Reset":
+			handleManagerReset(w, r, managerId)
+		default:
+			sendRedfishError(w, "ActionNotSupported", fmt.Sprintf("Action %s not supported for Manager", actionName), http.StatusBadRequest)
+		}
+	default:
+		methodNotAllowed(w, r)
+	}
+}
+
+// handleManagerResetActionInfo returns ActionInfo for Manager.Reset
+func handleManagerResetActionInfo(w http.ResponseWriter, r *http.Request, managerId string) {
+	w.Header().Set("Content-Type", "application/json")
+
+	response := map[string]interface{}{
+		"@odata.context": "/redfish/v1/$metadata#ActionInfo.ActionInfo",
+		"@odata.id":      fmt.Sprintf("/redfish/v1/Managers/%s/Actions/Manager.Reset", managerId),
+		"@odata.type":    "#ActionInfo.v1_1_2.ActionInfo",
+		"Id":             "Manager.Reset",
+		"Name":           "Manager Reset",
+		"Parameters": []map[string]interface{}{
+			{
+				"Name":            "ResetType",
+				"Required":        false,
+				"DataType":        "String",
+				"AllowableValues": []string{"ForceRestart", "GracefulRestart"},
+			},
+		},
+	}
+
+	etag := generateETag(response)
+	w.Header().Set("ETag", etag)
+
+	// Check conditional GET
+	if ifNoneMatch := r.Header.Get("If-None-Match"); ifNoneMatch != "" {
+		normalizedETag := normalizeETag(etag)
+		normalizedIfNoneMatch := normalizeETag(ifNoneMatch)
+		if normalizedIfNoneMatch == normalizedETag || ifNoneMatch == "*" {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+	}
+
+	json.NewEncoder(w).Encode(response)
+}
+
+// handleManagerReset handles the Manager.Reset action
+func handleManagerReset(w http.ResponseWriter, r *http.Request, managerId string) {
+	// Parse request body for ResetType parameter
+	var requestBody struct {
+		ResetType string `json:"ResetType"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&requestBody); err != nil && err.Error() != "EOF" {
+		sendRedfishError(w, "MalformedJSON", "Invalid JSON in request body", http.StatusBadRequest)
+		return
+	}
+
+	// Validate ResetType parameter
+	validResetTypes := map[string]bool{
+		"ForceRestart":    true,
+		"GracefulRestart": true,
+	}
+
+	resetType := requestBody.ResetType
+	if resetType == "" {
+		resetType = "GracefulRestart" // Default reset type for managers
+	}
+
+	if !validResetTypes[resetType] {
+		sendRedfishError(w, "InvalidParameter", fmt.Sprintf("Invalid ResetType: %s", resetType), http.StatusBadRequest)
+		return
+	}
+
+	// In a real implementation, this would trigger the actual manager reset
+	// For demo purposes, we just return success
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // setRedfishHeaders sets common Redfish headers

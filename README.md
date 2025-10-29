@@ -4,7 +4,7 @@ A Redfish-compliant server implementation following DSP0266 (Redfish Protocol) a
 
 ## Project Status
 
-**Current Stage:** Stage 7 - Actions Implementation (In Progress)
+**Current Stage:** Stage 8 - Eventing System
 
 ### Completed Stages
 - ✅ Stage 1: Project Setup and Architecture Planning (Completed)
@@ -57,8 +57,15 @@ A Redfish-compliant server implementation following DSP0266 (Redfish Protocol) a
   - Combined parameter processing with proper precedence
   - **All query parameter tests passed** - see [stage6_report.md](stage6_report.md)
 
+- ✅ Stage 7: Actions Implementation (Completed & Tested)
+  - ComputerSystem.Reset and Manager.Reset actions implemented
+  - Action URI parsing and parameter validation added
+  - ActionInfo resources for action metadata implemented
+  - Proper HTTP status codes (204 No Content for POST, 200 for GET ActionInfo)
+  - Parameter descriptions and allowable values support
+  - **All action tests passed** - see [stage7_report.md](stage7_report.md)
+
 ### Upcoming Stages
-- Stage 7: Actions Implementation
 - Stage 8: Eventing System
 - Stage 9: Asynchronous Operations (Tasks)
 - Stage 10: OEM Extensions and Registries
@@ -96,10 +103,14 @@ The server implements the following Redfish API endpoints:
 ### Protected Endpoints (Authentication Required)
 - `GET /redfish/v1/Systems` - Computer systems collection
 - `GET /redfish/v1/Systems/1` - Individual computer system
+- `POST /redfish/v1/Systems/1/Actions/ComputerSystem.Reset` - Reset computer system
+- `GET /redfish/v1/Systems/1/Actions/ComputerSystem.Reset` - ComputerSystem.Reset action info
 - `GET /redfish/v1/Chassis` - Chassis collection
 - `GET /redfish/v1/Chassis/1` - Individual chassis
 - `GET /redfish/v1/Managers` - Managers collection
 - `GET /redfish/v1/Managers/1` - Individual manager
+- `POST /redfish/v1/Managers/1/Actions/Manager.Reset` - Reset manager
+- `GET /redfish/v1/Managers/1/Actions/Manager.Reset` - Manager.Reset action info
 - `GET /redfish/v1/AccountService` - Account service
 - `GET /redfish/v1/AccountService/Accounts` - Accounts collection
 - `GET /redfish/v1/AccountService/Accounts/{username}` - Individual account
@@ -111,6 +122,8 @@ The server implements the following Redfish API endpoints:
 - ✅ Conditional GET requests
 - ✅ Redfish-compliant error responses
 - ✅ TLS 1.3 encryption
+- ✅ Redfish Actions (ComputerSystem.Reset, Manager.Reset)
+- ✅ ActionInfo metadata for action parameters
 
 ## Technology Choices
 
