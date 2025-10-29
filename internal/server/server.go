@@ -113,6 +113,7 @@ func setupRoutes(mux *http.ServeMux) {
 
 	// Session service endpoints
 	mux.HandleFunc("/redfish/v1/SessionService/Sessions", sessionsHandler)
+	mux.HandleFunc("/redfish/v1/SessionService/Sessions/Members", sessionsHandler)
 	mux.HandleFunc("/redfish/v1/SessionService", sessionServiceHandler)
 
 	// Account service endpoints
@@ -557,6 +558,7 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("X-Auth-Token", token)
+	w.Header().Set("Location", "/redfish/v1/SessionService/Sessions/"+token)
 	w.WriteHeader(http.StatusCreated)
 
 	response := fmt.Sprintf(`{

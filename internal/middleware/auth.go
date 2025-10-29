@@ -17,8 +17,8 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// Allow POST to Sessions without authentication for login
-		if r.Method == "POST" && r.URL.Path == "/redfish/v1/SessionService/Sessions" {
+		// Allow POST to Sessions and Members without authentication for login
+		if r.Method == "POST" && (r.URL.Path == "/redfish/v1/SessionService/Sessions" || r.URL.Path == "/redfish/v1/SessionService/Sessions/Members") {
 			next.ServeHTTP(w, r)
 			return
 		}
