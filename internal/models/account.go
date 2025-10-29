@@ -3,16 +3,16 @@ package models
 // AccountService represents the account service
 type AccountService struct {
 	Resource
-	ServiceEnabled                  bool    `json:"ServiceEnabled"`
-	Accounts                        ODataID `json:"Accounts,omitempty"`
-	Roles                           ODataID `json:"Roles,omitempty"`
-	PrivilegeMap                    ODataID `json:"PrivilegeMap,omitempty"`
-	Status                          Status  `json:"Status,omitempty"`
-	MinPasswordLength               int     `json:"MinPasswordLength,omitempty"`
-	MaxPasswordLength               int     `json:"MaxPasswordLength,omitempty"`
-	AccountLockoutThreshold         int     `json:"AccountLockoutThreshold,omitempty"`
-	AccountLockoutDuration          int     `json:"AccountLockoutDuration,omitempty"`
-	AccountLockoutCounterResetAfter int     `json:"AccountLockoutCounterResetAfter,omitempty"`
+	ServiceEnabled                  bool   `json:"ServiceEnabled"`
+	Accounts                        Link   `json:"Accounts,omitempty"`
+	Roles                           Link   `json:"Roles,omitempty"`
+	PrivilegeMap                    Link   `json:"PrivilegeMap,omitempty"`
+	Status                          Status `json:"Status,omitempty"`
+	MinPasswordLength               int    `json:"MinPasswordLength,omitempty"`
+	MaxPasswordLength               int    `json:"MaxPasswordLength,omitempty"`
+	AccountLockoutThreshold         int    `json:"AccountLockoutThreshold,omitempty"`
+	AccountLockoutDuration          int    `json:"AccountLockoutDuration,omitempty"`
+	AccountLockoutCounterResetAfter int    `json:"AccountLockoutCounterResetAfter,omitempty"`
 }
 
 // NewAccountService creates a new AccountService instance
@@ -26,9 +26,9 @@ func NewAccountService() *AccountService {
 			Name:         "Account Service",
 		},
 		ServiceEnabled: true,
-		Accounts:       "/redfish/v1/AccountService/Accounts",
-		Roles:          "/redfish/v1/AccountService/Roles",
-		PrivilegeMap:   "/redfish/v1/AccountService/PrivilegeMap",
+		Accounts:       Link{ODataID: "/redfish/v1/AccountService/Accounts"},
+		Roles:          Link{ODataID: "/redfish/v1/AccountService/Roles"},
+		PrivilegeMap:   Link{ODataID: "/redfish/v1/AccountService/PrivilegeMap"},
 		Status: Status{
 			State:  "Enabled",
 			Health: "OK",
@@ -92,7 +92,7 @@ func NewManagerAccountCollection() *ManagerAccountCollection {
 			ODataID:           "/redfish/v1/AccountService/Accounts",
 			ODataType:         "#ManagerAccountCollection.ManagerAccountCollection",
 			Name:              "Accounts Collection",
-			Members:           []ODataID{"/redfish/v1/AccountService/Accounts/admin", "/redfish/v1/AccountService/Accounts/operator"},
+			Members:           []Link{Link{ODataID: "/redfish/v1/AccountService/Accounts/admin"}, Link{ODataID: "/redfish/v1/AccountService/Accounts/operator"}},
 			MembersODataCount: 2,
 		},
 	}

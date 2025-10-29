@@ -8,6 +8,11 @@ type ODataContext string
 // ODataID represents the @odata.id annotation
 type ODataID string
 
+// Link represents a reference to another resource
+type Link struct {
+	ODataID ODataID `json:"@odata.id"`
+}
+
 // ODataType represents the @odata.type annotation
 type ODataType string
 
@@ -77,7 +82,7 @@ type Collection struct {
 	ODataID           ODataID      `json:"@odata.id,omitempty"`
 	ODataType         ODataType    `json:"@odata.type,omitempty"`
 	Name              string       `json:"Name"`
-	Members           []ODataID    `json:"Members"`
+	Members           []Link       `json:"Members"`
 	MembersODataCount int          `json:"Members@odata.count"`
 	Oem               *Oem         `json:"Oem,omitempty"`
 }

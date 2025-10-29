@@ -78,7 +78,7 @@ func NewChassisCollection() *ChassisCollection {
 			ODataID:           "/redfish/v1/Chassis",
 			ODataType:         "#ChassisCollection.ChassisCollection",
 			Name:              "Chassis Collection",
-			Members:           []ODataID{"/redfish/v1/Chassis/1"},
+			Members:           []Link{Link{ODataID: "/redfish/v1/Chassis/1"}},
 			MembersODataCount: 1,
 		},
 	}

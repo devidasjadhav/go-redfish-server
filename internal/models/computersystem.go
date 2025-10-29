@@ -68,9 +68,9 @@ type EthernetInterfaces struct {
 
 // ComputerSystemLinks represents links to related resources
 type ComputerSystemLinks struct {
-	Chassis   []ODataID `json:"Chassis,omitempty"`
-	ManagedBy []ODataID `json:"ManagedBy,omitempty"`
-	Oem       Oem       `json:"Oem,omitempty"`
+	Chassis   []Link `json:"Chassis,omitempty"`
+	ManagedBy []Link `json:"ManagedBy,omitempty"`
+	Oem       Oem    `json:"Oem,omitempty"`
 }
 
 // ComputerSystemActions represents available actions
@@ -120,7 +120,7 @@ func NewComputerSystem(id string) *ComputerSystem {
 		Memory:      ODataID("/redfish/v1/Systems/" + id + "/Memory"),
 		LogServices: ODataID("/redfish/v1/Systems/" + id + "/LogServices"),
 		Links: ComputerSystemLinks{
-			ManagedBy: []ODataID{"/redfish/v1/Managers/1"},
+			ManagedBy: []Link{Link{ODataID: "/redfish/v1/Managers/1"}},
 		},
 		Actions: ComputerSystemActions{
 			ComputerSystemReset: struct {
@@ -150,7 +150,7 @@ func NewComputerSystemCollection() *ComputerSystemCollection {
 			ODataID:           "/redfish/v1/Systems",
 			ODataType:         "#ComputerSystemCollection.ComputerSystemCollection",
 			Name:              "Computer System Collection",
-			Members:           []ODataID{"/redfish/v1/Systems/1"},
+			Members:           []Link{Link{ODataID: "/redfish/v1/Systems/1"}},
 			MembersODataCount: 1,
 		},
 	}

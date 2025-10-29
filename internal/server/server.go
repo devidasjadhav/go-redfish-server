@@ -118,6 +118,8 @@ func setupRoutes(mux *http.ServeMux) {
 	// Account service endpoints
 	mux.HandleFunc("/redfish/v1/AccountService/Accounts/", accountHandler)
 	mux.HandleFunc("/redfish/v1/AccountService/Accounts", accountsHandler)
+	mux.HandleFunc("/redfish/v1/AccountService/Roles/", roleHandler)
+	mux.HandleFunc("/redfish/v1/AccountService/Roles", rolesHandler)
 	mux.HandleFunc("/redfish/v1/AccountService", accountServiceHandler)
 
 	// Computer system endpoints
@@ -181,9 +183,12 @@ func handleGetHealth(w http.ResponseWriter, r *http.Request) {
 // serviceRootHandler handles the Redfish service root
 func serviceRootHandler(w http.ResponseWriter, r *http.Request) {
 	setRedfishHeaders(w)
+	w.Header().Set("Allow", "GET, HEAD")
 
 	switch r.Method {
 	case "GET":
+		handleGetServiceRoot(w, r)
+	case "HEAD":
 		handleGetServiceRoot(w, r)
 	default:
 		methodNotAllowed(w, r)
@@ -246,6 +251,7 @@ func metadataHandler(w http.ResponseWriter, r *http.Request) {
 
 // handleGetMetadata returns the OData metadata document
 func handleGetMetadata(w http.ResponseWriter, r *http.Request) {
+	setRedfishHeaders(w)
 	w.Header().Set("Content-Type", "application/xml")
 
 	// Basic metadata document (simplified)
@@ -582,6 +588,94 @@ func handleReplaceAccount(w http.ResponseWriter, r *http.Request, username strin
 // handleDeleteAccount deletes an account
 func handleDeleteAccount(w http.ResponseWriter, r *http.Request, username string) {
 	sendRedfishError(w, "MethodNotAllowed", "Account deletion not implemented", http.StatusMethodNotAllowed)
+}
+
+// rolesHandler handles the roles collection
+func rolesHandler(w http.ResponseWriter, r *http.Request) {
+	setRedfishHeaders(w)
+	w.Header().Set("Allow", "GET, HEAD")
+
+	switch r.Method {
+	case "GET":
+		handleGetRoles(w, r)
+	case "HEAD":
+		handleGetRoles(w, r)
+	default:
+		methodNotAllowed(w, r)
+	}
+}
+
+// handleGetRoles returns the roles collection
+func handleGetRoles(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	roles := models.NewRoleCollection()
+	etag := generateETag(roles)
+	w.Header().Set("ETag", etag)
+
+	// Check conditional GET
+	if ifNoneMatch := r.Header.Get("If-None-Match"); ifNoneMatch != "" {
+		normalizedETag := normalizeETag(etag)
+		normalizedIfNoneMatch := normalizeETag(ifNoneMatch)
+		if normalizedIfNoneMatch == normalizedETag || ifNoneMatch == "*" {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+	}
+
+	json.NewEncoder(w).Encode(roles)
+}
+
+// roleHandler handles individual role resources
+func roleHandler(w http.ResponseWriter, r *http.Request) {
+	setRedfishHeaders(w)
+	w.Header().Set("Allow", "GET, HEAD")
+
+	// Extract role ID from URL path
+	path := r.URL.Path
+	id := path[len("/redfish/v1/AccountService/Roles/"):]
+
+	switch r.Method {
+	case "GET":
+		handleGetRole(w, r, id)
+	case "HEAD":
+		handleGetRole(w, r, id)
+	default:
+		methodNotAllowed(w, r)
+	}
+}
+
+// handleGetRole returns a specific role
+func handleGetRole(w http.ResponseWriter, r *http.Request, id string) {
+	w.Header().Set("Content-Type", "application/json")
+
+	var role *models.Role
+	switch id {
+	case "Administrator":
+		role = models.NewRole("Administrator", "Administrator", []string{"Login", "ConfigureManager", "ConfigureUsers", "ConfigureComponents", "ConfigureSelf"}, true)
+	case "Operator":
+		role = models.NewRole("Operator", "Operator", []string{"Login", "ConfigureComponents", "ConfigureSelf"}, true)
+	case "ReadOnly":
+		role = models.NewRole("ReadOnly", "ReadOnly", []string{"Login"}, true)
+	default:
+		sendRedfishError(w, "ResourceNotFound", "Role not found", http.StatusNotFound)
+		return
+	}
+
+	etag := generateETag(role)
+	w.Header().Set("ETag", etag)
+
+	// Check conditional GET
+	if ifNoneMatch := r.Header.Get("If-None-Match"); ifNoneMatch != "" {
+		normalizedETag := normalizeETag(etag)
+		normalizedIfNoneMatch := normalizeETag(ifNoneMatch)
+		if normalizedIfNoneMatch == normalizedETag || ifNoneMatch == "*" {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+	}
+
+	json.NewEncoder(w).Encode(role)
 }
 
 // systemsHandler handles the computer systems collection
@@ -1236,6 +1330,8 @@ func handleManagerReset(w http.ResponseWriter, r *http.Request, managerId string
 func setRedfishHeaders(w http.ResponseWriter) {
 	w.Header().Set("OData-Version", "4.0")
 	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Link", "</redfish/v1/$metadata>; rel=describedby")
 }
 
 // methodNotAllowed sends a 405 Method Not Allowed response
@@ -1382,7 +1478,7 @@ func applyFilterToSystems(collection models.ComputerSystemCollection, filter str
 		// Keep all members (since our demo system is 'On')
 	} else if strings.Contains(filter, "PowerState eq 'Off'") || strings.Contains(filter, "PowerState eq \"Off\"") {
 		// Remove all members (since our demo system is not 'Off')
-		result.Members = []models.ODataID{}
+		result.Members = []models.Link{}
 		result.MembersODataCount = 0
 	}
 
@@ -1504,11 +1600,11 @@ func applyExpandToSystem(system *models.ComputerSystem, expandProps []string) *m
 			// Expand chassis information
 			// In Redfish, expanded resources are typically added as new properties
 			// For this demo, we'll just ensure the Links.Chassis points to expanded data
-			result.Links.Chassis = []models.ODataID{"/redfish/v1/Chassis/1"}
+			result.Links.Chassis = []models.Link{models.Link{ODataID: "/redfish/v1/Chassis/1"}}
 
 		case "ManagedBy":
 			// Expand manager information
-			result.Links.ManagedBy = []models.ODataID{"/redfish/v1/Managers/1"}
+			result.Links.ManagedBy = []models.Link{models.Link{ODataID: "/redfish/v1/Managers/1"}}
 
 		// Add more expandable properties as needed
 		default:
@@ -1566,7 +1662,7 @@ func handleGetEventSubscriptions(w http.ResponseWriter, r *http.Request) {
 		ODataID:           "/redfish/v1/EventService/Subscriptions",
 		ODataType:         "#EventDestinationCollection.EventDestinationCollection",
 		Name:              "Event Subscriptions Collection",
-		Members:           []models.ODataID{},
+		Members:           []models.Link{},
 		MembersODataCount: 0,
 	}
 
@@ -1717,9 +1813,9 @@ func handleGetRegistries(w http.ResponseWriter, r *http.Request) {
 	baseRegistry := models.NewMessageRegistryFile("Base.1.0.0", "Base.1.0")
 	taskRegistry := models.NewMessageRegistryFile("Task.1.0.0", "Task.1.0")
 
-	members := []models.ODataID{
-		baseRegistry.ODataID,
-		taskRegistry.ODataID,
+	members := []models.Link{
+		models.Link{ODataID: baseRegistry.ODataID},
+		models.Link{ODataID: taskRegistry.ODataID},
 	}
 
 	collection := models.Collection{
@@ -1875,9 +1971,9 @@ func handleGetTasks(w http.ResponseWriter, r *http.Request) {
 	tasksMutex.RLock()
 	defer tasksMutex.RUnlock()
 
-	members := make([]models.ODataID, 0, len(tasks))
+	members := make([]models.Link, 0, len(tasks))
 	for _, task := range tasks {
-		members = append(members, task.ODataID)
+		members = append(members, models.Link{ODataID: task.ODataID})
 	}
 
 	collection := models.Collection{

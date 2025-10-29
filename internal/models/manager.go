@@ -12,21 +12,21 @@ type Manager struct {
 	Model                 string         `json:"Model,omitempty"`
 	DateTime              string         `json:"DateTime,omitempty"` // ISO 8601 format
 	DateTimeLocalOffset   string         `json:"DateTimeLocalOffset,omitempty"`
-	NetworkProtocol       ODataID        `json:"NetworkProtocol,omitempty"`
-	EthernetInterfaces    ODataID        `json:"EthernetInterfaces,omitempty"`
-	SerialInterfaces      ODataID        `json:"SerialInterfaces,omitempty"`
-	LogServices           ODataID        `json:"LogServices,omitempty"`
-	VirtualMedia          ODataID        `json:"VirtualMedia,omitempty"`
+	NetworkProtocol       Link           `json:"NetworkProtocol,omitempty"`
+	EthernetInterfaces    Link           `json:"EthernetInterfaces,omitempty"`
+	SerialInterfaces      Link           `json:"SerialInterfaces,omitempty"`
+	LogServices           Link           `json:"LogServices,omitempty"`
+	VirtualMedia          Link           `json:"VirtualMedia,omitempty"`
 	Links                 ManagerLinks   `json:"Links,omitempty"`
 	Actions               ManagerActions `json:"Actions,omitempty"`
 }
 
 // ManagerLinks represents links to related resources
 type ManagerLinks struct {
-	ManagerForServers []ODataID `json:"ManagerForServers,omitempty"`
-	ManagerForChassis []ODataID `json:"ManagerForChassis,omitempty"`
-	ManagerInChassis  ODataID   `json:"ManagerInChassis,omitempty"`
-	Oem               Oem       `json:"Oem,omitempty"`
+	ManagerForServers []Link `json:"ManagerForServers,omitempty"`
+	ManagerForChassis []Link `json:"ManagerForChassis,omitempty"`
+	ManagerInChassis  Link   `json:"ManagerInChassis,omitempty"`
+	Oem               Oem    `json:"Oem,omitempty"`
 }
 
 // ManagerActions represents available actions
@@ -64,12 +64,12 @@ func NewManager(id string) *Manager {
 		Model:                 "Baseboard Management Controller",
 		DateTime:              "2025-10-29T18:48:45+00:00",
 		DateTimeLocalOffset:   "+00:00",
-		NetworkProtocol:       ODataID("/redfish/v1/Managers/" + id + "/NetworkProtocol"),
-		EthernetInterfaces:    ODataID("/redfish/v1/Managers/" + id + "/EthernetInterfaces"),
-		LogServices:           ODataID("/redfish/v1/Managers/" + id + "/LogServices"),
+		NetworkProtocol:       Link{ODataID: ODataID("/redfish/v1/Managers/" + id + "/NetworkProtocol")},
+		EthernetInterfaces:    Link{ODataID: ODataID("/redfish/v1/Managers/" + id + "/EthernetInterfaces")},
+		LogServices:           Link{ODataID: ODataID("/redfish/v1/Managers/" + id + "/LogServices")},
 		Links: ManagerLinks{
-			ManagerForServers: []ODataID{ODataID("/redfish/v1/Systems/1")},
-			ManagerForChassis: []ODataID{ODataID("/redfish/v1/Chassis/1")},
+			ManagerForServers: []Link{Link{ODataID: "/redfish/v1/Systems/1"}},
+			ManagerForChassis: []Link{Link{ODataID: "/redfish/v1/Chassis/1"}},
 		},
 		Actions: ManagerActions{
 			ManagerReset: struct {
@@ -96,7 +96,7 @@ func NewManagerCollection() *ManagerCollection {
 			ODataID:           "/redfish/v1/Managers",
 			ODataType:         "#ManagerCollection.ManagerCollection",
 			Name:              "Manager Collection",
-			Members:           []ODataID{"/redfish/v1/Managers/1"},
+			Members:           []Link{Link{ODataID: "/redfish/v1/Managers/1"}},
 			MembersODataCount: 1,
 		},
 	}

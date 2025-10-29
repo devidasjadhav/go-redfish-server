@@ -26,9 +26,14 @@ func main() {
 
 	// Start server in a goroutine
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("Server panicked: %v", r)
+			}
+		}()
 		fmt.Printf("Starting Redfish server on %s\n", cfg.Server.Address)
 		if err := srv.Start(); err != nil {
-			log.Fatalf("Server failed to start: %v", err)
+			log.Printf("Server failed to start: %v", err)
 		}
 	}()
 
