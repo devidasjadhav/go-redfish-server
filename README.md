@@ -4,7 +4,7 @@ A Redfish-compliant server implementation following DSP0266 (Redfish Protocol) a
 
 ## Project Status
 
-**Current Stage:** Stage 6 - Query Parameters Support (In Progress)
+**Current Stage:** Stage 7 - Actions Implementation (In Progress)
 
 ### Completed Stages
 - ✅ Stage 1: Project Setup and Architecture Planning (Completed)
@@ -50,8 +50,14 @@ A Redfish-compliant server implementation following DSP0266 (Redfish Protocol) a
   - Redfish-compliant error responses with extended information
   - **All handler tests passed** - see [stage5_report.md](stage5_report.md)
 
+- ✅ Stage 6: Query Parameters Support (Completed & Tested)
+  - OData query parameters ($top, $skip, $select, $expand, $filter) implemented
+  - Pagination, filtering, and resource expansion support
+  - Query parameter parsing with validation and error handling
+  - Combined parameter processing with proper precedence
+  - **All query parameter tests passed** - see [stage6_report.md](stage6_report.md)
+
 ### Upcoming Stages
-- Stage 6: Query Parameters Support
 - Stage 7: Actions Implementation
 - Stage 8: Eventing System
 - Stage 9: Asynchronous Operations (Tasks)
