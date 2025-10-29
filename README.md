@@ -249,6 +249,38 @@ The server now passes all Redfish Protocol Validator tests. See `reports/` direc
 
 ## Development
 
+### Continuous Integration & Deployment
+
+This repository uses GitHub Actions for automated releases:
+
+- **Trigger:** Push a new version tag (e.g., `v1.0.0`)
+- **Build:** Cross-platform compilation for Linux, Windows, and macOS
+- **Test:** Run all unit tests
+- **Release:** Create GitHub release with binaries and documentation
+
+### Creating a New Release
+
+```bash
+# Create and push a new version tag
+git tag v1.1.0
+git push origin v1.1.0
+```
+
+The CI/CD pipeline will automatically:
+1. Build binaries for multiple platforms
+2. Generate TLS certificates
+3. Create release archives
+4. Publish a GitHub release with download links
+
+### Release Assets
+
+Each release includes:
+- `redfish-server-linux-amd64.tar.gz` - Linux x86_64
+- `redfish-server-linux-arm64.tar.gz` - Linux ARM64
+- `redfish-server-windows-amd64.zip` - Windows x86_64
+- `redfish-server-darwin-amd64.tar.gz` - macOS x86_64
+- `redfish-server-darwin-arm64.tar.gz` - macOS ARM64 (Apple Silicon)
+
 See [PLAN.md](PLAN.md) for detailed implementation plan and progress tracking.
 
 ## License
