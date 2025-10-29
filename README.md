@@ -4,7 +4,7 @@ A Redfish-compliant server implementation following DSP0266 (Redfish Protocol) a
 
 ## Project Status
 
-**Current Stage:** Stage 9 - Asynchronous Operations (Tasks) (Completed)
+**Current Stage:** Stage 10 - OEM Extensions and Registries (Completed)
 
 ### Completed Stages
 - ✅ Stage 1: Project Setup and Architecture Planning (Completed)
@@ -83,8 +83,16 @@ A Redfish-compliant server implementation following DSP0266 (Redfish Protocol) a
   - Comprehensive task testing with lifecycle validation
   - **All task tests passed** - see [stage9_report.md](stage9_report.md)
 
+- ✅ Stage 10: OEM Extensions and Registries (Completed & Tested)
+  - OEM extension framework with Contoso vendor-specific properties
+  - Message Registry data models with complete message definitions
+  - Registry collection and individual registry file endpoints
+  - OEM properties integrated into ComputerSystem resources
+  - OEM-specific custom actions and functionality
+  - Comprehensive OEM and registry testing with validation
+  - **All OEM and registry tests passed** - see [stage10_report.md](stage10_report.md)
+
 ### Upcoming Stages
-- Stage 10: OEM Extensions and Registries
 - Stage 11: Testing and Conformance Validation
 
 ## Architecture
@@ -141,6 +149,9 @@ The server implements the following Redfish API endpoints:
 - `POST /redfish/v1/TaskService/Tasks` - Create new task
 - `GET /redfish/v1/TaskService/Tasks/{id}` - Individual task status
 - `DELETE /redfish/v1/TaskService/Tasks/{id}` - Delete completed task
+- `GET /redfish/v1/Registries` - Message registries collection
+- `GET /redfish/v1/Registries/{id}` - Individual message registry file
+- `POST /redfish/v1/Oem/Contoso/CustomAction` - OEM custom action
 
 ### Supported Features
 - ✅ HTTP Basic Authentication
@@ -155,6 +166,8 @@ The server implements the following Redfish API endpoints:
 - ✅ Event filtering and routing framework
 - ✅ Redfish Task Service for asynchronous operations
 - ✅ Task lifecycle management with progress tracking
+- ✅ OEM Extensions framework with vendor-specific properties
+- ✅ Message Registry support with standard message definitions
 
 ## Technology Choices
 

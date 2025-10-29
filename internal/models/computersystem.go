@@ -27,6 +27,7 @@ type ComputerSystem struct {
 	LogServices        ODataID               `json:"LogServices,omitempty"`
 	Links              ComputerSystemLinks   `json:"Links,omitempty"`
 	Actions            ComputerSystemActions `json:"Actions,omitempty"`
+	Oem                *OEM                  `json:"Oem,omitempty"`
 }
 
 // Boot represents boot configuration
@@ -129,6 +130,9 @@ func NewComputerSystem(id string) *ComputerSystem {
 				Target: "/redfish/v1/Systems/" + id + "/Actions/ComputerSystem.Reset",
 				Title:  "Reset Computer System",
 			},
+		},
+		Oem: &OEM{
+			Contoso: NewContosoOEM(),
 		},
 	}
 }

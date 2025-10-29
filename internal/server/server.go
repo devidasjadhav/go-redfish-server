@@ -143,6 +143,13 @@ func setupRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/redfish/v1/TaskService/Tasks", tasksHandler)
 	mux.HandleFunc("/redfish/v1/TaskService", taskServiceHandler)
 
+	// Registry endpoints
+	mux.HandleFunc("/redfish/v1/Registries/", registryHandler)
+	mux.HandleFunc("/redfish/v1/Registries", registriesHandler)
+
+	// OEM endpoints
+	mux.HandleFunc("/redfish/v1/Oem/Contoso/CustomAction", oemCustomActionHandler)
+
 	// Redfish root endpoint - must be last
 	mux.HandleFunc("/redfish/v1/", serviceRootHandler)
 }
@@ -1690,6 +1697,138 @@ func handleGetEventSSE(w http.ResponseWriter, r *http.Request) {
 
 	// Close the connection after a short time for demo purposes
 	time.Sleep(1 * time.Second)
+}
+
+// registriesHandler handles Registries collection requests
+func registriesHandler(w http.ResponseWriter, r *http.Request) {
+	setRedfishHeaders(w)
+
+	switch r.Method {
+	case "GET":
+		handleGetRegistries(w, r)
+	default:
+		methodNotAllowed(w, r)
+	}
+}
+
+// handleGetRegistries returns the Registries collection
+func handleGetRegistries(w http.ResponseWriter, r *http.Request) {
+	// Create sample registry files
+	baseRegistry := models.NewMessageRegistryFile("Base.1.0.0", "Base.1.0")
+	taskRegistry := models.NewMessageRegistryFile("Task.1.0.0", "Task.1.0")
+
+	members := []models.ODataID{
+		baseRegistry.ODataID,
+		taskRegistry.ODataID,
+	}
+
+	collection := models.Collection{
+		ODataContext:      "/redfish/v1/$metadata#MessageRegistryFileCollection.MessageRegistryFileCollection",
+		ODataID:           "/redfish/v1/Registries",
+		ODataType:         "#MessageRegistryFileCollection.MessageRegistryFileCollection",
+		Name:              "Message Registry File Collection",
+		Members:           members,
+		MembersODataCount: len(members),
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	if err := json.NewEncoder(w).Encode(collection); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
+// registryHandler handles individual Registry requests
+func registryHandler(w http.ResponseWriter, r *http.Request) {
+	setRedfishHeaders(w)
+
+	// Extract registry ID from URL
+	path := strings.TrimPrefix(r.URL.Path, "/redfish/v1/Registries/")
+	parts := strings.Split(path, "/")
+	id := parts[0]
+
+	if id == "" {
+		http.Error(w, "Registry ID required", http.StatusBadRequest)
+		return
+	}
+
+	switch r.Method {
+	case "GET":
+		handleGetRegistry(w, r, id)
+	default:
+		methodNotAllowed(w, r)
+	}
+}
+
+// handleGetRegistry returns a specific registry file
+func handleGetRegistry(w http.ResponseWriter, r *http.Request, id string) {
+	var registry *models.MessageRegistryFile
+
+	switch id {
+	case "Base.1.0.0":
+		registry = models.NewMessageRegistryFile("Base.1.0.0", "Base.1.0")
+	case "Task.1.0.0":
+		registry = models.NewMessageRegistryFile("Task.1.0.0", "Task.1.0")
+	default:
+		http.Error(w, "Registry not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	if err := json.NewEncoder(w).Encode(registry); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
+// oemCustomActionHandler handles OEM custom action requests
+func oemCustomActionHandler(w http.ResponseWriter, r *http.Request) {
+	setRedfishHeaders(w)
+
+	switch r.Method {
+	case "POST":
+		handleOemCustomAction(w, r)
+	default:
+		methodNotAllowed(w, r)
+	}
+}
+
+// handleOemCustomAction handles the OEM custom action
+func handleOemCustomAction(w http.ResponseWriter, r *http.Request) {
+	var requestBody struct {
+		Action     string                 `json:"Action"`
+		Parameters map[string]interface{} `json:"Parameters,omitempty"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&requestBody); err != nil && err.Error() != "EOF" {
+		sendRedfishError(w, "MalformedJSON", "Invalid JSON in request body", http.StatusBadRequest)
+		return
+	}
+
+	// Simulate OEM-specific action processing
+	response := map[string]interface{}{
+		"@odata.type": "#OemCustomAction.v1_0_0.Response",
+		"Action":      requestBody.Action,
+		"Status":      "Success",
+		"Message":     "OEM custom action executed successfully",
+		"Timestamp":   time.Now().Format(time.RFC3339),
+	}
+
+	if requestBody.Parameters != nil {
+		response["Parameters"] = requestBody.Parameters
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }
 
 // taskServiceHandler handles TaskService requests
