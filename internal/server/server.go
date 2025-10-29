@@ -20,8 +20,9 @@ import (
 
 // Server represents the Redfish HTTP server
 type Server struct {
-	httpServer *http.Server
-	config     *config.Config
+	httpServer    *http.Server
+	config        *config.Config
+	subscriptions map[string]*models.EventSubscription // In-memory storage for demo
 }
 
 // New creates a new Redfish server instance
@@ -58,8 +59,9 @@ func New(cfg *config.Config) (*Server, error) {
 	}
 
 	return &Server{
-		httpServer: httpServer,
-		config:     cfg,
+		httpServer:    httpServer,
+		config:        cfg,
+		subscriptions: make(map[string]*models.EventSubscription),
 	}, nil
 }
 
@@ -74,6 +76,13 @@ func (s *Server) Start() error {
 
 	fmt.Println("WARNING: TLS is disabled. Redfish requires TLS in production!")
 	return s.httpServer.ListenAndServe()
+}
+
+// SendEvent sends an event to all matching subscribers
+func (s *Server) SendEvent(event *models.Event) {
+	// For now, just log the event
+	fmt.Printf("Event sent: %+v\n", event)
+	// In a real implementation, this would filter subscribers and send HTTP POSTs
 }
 
 // Shutdown gracefully shuts down the server
@@ -113,6 +122,12 @@ func setupRoutes(mux *http.ServeMux) {
 	// Manager endpoints
 	mux.HandleFunc("/redfish/v1/Managers/", managerHandler)
 	mux.HandleFunc("/redfish/v1/Managers", managersHandler)
+
+	// Event service endpoints
+	mux.HandleFunc("/redfish/v1/EventService/Subscriptions/", eventSubscriptionHandler)
+	mux.HandleFunc("/redfish/v1/EventService/Subscriptions", eventSubscriptionsHandler)
+	mux.HandleFunc("/redfish/v1/EventService/SSE", eventSSEHandler)
+	mux.HandleFunc("/redfish/v1/EventService", eventServiceHandler)
 
 	// Redfish root endpoint - must be last
 	mux.HandleFunc("/redfish/v1/", serviceRootHandler)
@@ -1405,4 +1420,184 @@ func applyExpandToSystem(system *models.ComputerSystem, expandProps []string) *m
 	}
 
 	return &result
+}
+
+// eventServiceHandler handles EventService requests
+func eventServiceHandler(w http.ResponseWriter, r *http.Request) {
+	setRedfishHeaders(w)
+
+	switch r.Method {
+	case "GET":
+		handleGetEventService(w, r)
+	default:
+		methodNotAllowed(w, r)
+	}
+}
+
+// handleGetEventService returns the EventService resource
+func handleGetEventService(w http.ResponseWriter, r *http.Request) {
+	eventService := models.NewEventService()
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	if err := json.NewEncoder(w).Encode(eventService); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
+// eventSubscriptionsHandler handles EventService Subscriptions collection requests
+func eventSubscriptionsHandler(w http.ResponseWriter, r *http.Request) {
+	setRedfishHeaders(w)
+
+	switch r.Method {
+	case "GET":
+		handleGetEventSubscriptions(w, r)
+	case "POST":
+		handlePostEventSubscription(w, r)
+	default:
+		methodNotAllowed(w, r)
+	}
+}
+
+// handleGetEventSubscriptions returns the EventSubscriptions collection
+func handleGetEventSubscriptions(w http.ResponseWriter, r *http.Request) {
+	// For now, return empty collection
+	collection := models.Collection{
+		ODataContext:      "/redfish/v1/$metadata#EventDestinationCollection.EventDestinationCollection",
+		ODataID:           "/redfish/v1/EventService/Subscriptions",
+		ODataType:         "#EventDestinationCollection.EventDestinationCollection",
+		Name:              "Event Subscriptions Collection",
+		Members:           []models.ODataID{},
+		MembersODataCount: 0,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	if err := json.NewEncoder(w).Encode(collection); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
+// handlePostEventSubscription creates a new event subscription
+func handlePostEventSubscription(w http.ResponseWriter, r *http.Request) {
+	var subscription models.EventSubscription
+	if err := json.NewDecoder(r.Body).Decode(&subscription); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	// Validate required fields
+	if subscription.Destination == "" {
+		http.Error(w, "Destination is required", http.StatusBadRequest)
+		return
+	}
+	if subscription.Protocol == "" {
+		subscription.Protocol = "Redfish" // Default
+	}
+
+	// Generate ID (in a real implementation, this would be stored)
+	id := fmt.Sprintf("%x", md5.Sum([]byte(subscription.Destination+time.Now().String())))[:8]
+
+	// Create the subscription
+	newSubscription := models.NewEventSubscription(id, subscription.Destination, subscription.Protocol)
+	if subscription.Context != "" {
+		newSubscription.Context = subscription.Context
+	}
+	if len(subscription.RegistryPrefixes) > 0 {
+		newSubscription.RegistryPrefixes = subscription.RegistryPrefixes
+	}
+	if len(subscription.ResourceTypes) > 0 {
+		newSubscription.ResourceTypes = subscription.ResourceTypes
+	}
+	if len(subscription.Severities) > 0 {
+		newSubscription.Severities = subscription.Severities
+	}
+	newSubscription.IncludeOriginOfCondition = subscription.IncludeOriginOfCondition
+	newSubscription.SubordinateResources = subscription.SubordinateResources
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Location", string(newSubscription.ODataID))
+	w.WriteHeader(http.StatusCreated)
+
+	if err := json.NewEncoder(w).Encode(newSubscription); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
+// eventSubscriptionHandler handles individual EventSubscription requests
+func eventSubscriptionHandler(w http.ResponseWriter, r *http.Request) {
+	setRedfishHeaders(w)
+
+	// Extract subscription ID from URL
+	path := strings.TrimPrefix(r.URL.Path, "/redfish/v1/EventService/Subscriptions/")
+	parts := strings.Split(path, "/")
+	id := parts[0]
+
+	if id == "" {
+		http.Error(w, "Subscription ID required", http.StatusBadRequest)
+		return
+	}
+
+	switch r.Method {
+	case "GET":
+		handleGetEventSubscription(w, r, id)
+	case "DELETE":
+		handleDeleteEventSubscription(w, r, id)
+	default:
+		methodNotAllowed(w, r)
+	}
+}
+
+// handleGetEventSubscription returns a specific event subscription
+func handleGetEventSubscription(w http.ResponseWriter, r *http.Request, id string) {
+	// For now, return 404 as we don't persist subscriptions
+	http.Error(w, "Subscription not found", http.StatusNotFound)
+}
+
+// handleDeleteEventSubscription deletes an event subscription
+func handleDeleteEventSubscription(w http.ResponseWriter, r *http.Request, id string) {
+	// For now, return 404 as we don't persist subscriptions
+	http.Error(w, "Subscription not found", http.StatusNotFound)
+}
+
+// eventSSEHandler handles Server-Sent Events requests
+func eventSSEHandler(w http.ResponseWriter, r *http.Request) {
+	setRedfishHeaders(w)
+
+	switch r.Method {
+	case "GET":
+		handleGetEventSSE(w, r)
+	default:
+		methodNotAllowed(w, r)
+	}
+}
+
+// handleGetEventSSE handles Server-Sent Events connections
+func handleGetEventSSE(w http.ResponseWriter, r *http.Request) {
+	// Set SSE headers
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	// For now, just send a test event and close
+	// In a real implementation, this would maintain persistent connections
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	// Send a heartbeat event
+	fmt.Fprintf(w, "event: heartbeat\n")
+	fmt.Fprintf(w, "data: {\"EventType\": \"Heartbeat\", \"Message\": \"Connection established\"}\n\n")
+	flusher.Flush()
+
+	// Close the connection after a short time for demo purposes
+	time.Sleep(1 * time.Second)
 }

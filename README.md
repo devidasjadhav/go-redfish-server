@@ -4,7 +4,7 @@ A Redfish-compliant server implementation following DSP0266 (Redfish Protocol) a
 
 ## Project Status
 
-**Current Stage:** Stage 8 - Eventing System
+**Current Stage:** Stage 8 - Eventing System (Completed)
 
 ### Completed Stages
 - ✅ Stage 1: Project Setup and Architecture Planning (Completed)
@@ -65,8 +65,16 @@ A Redfish-compliant server implementation following DSP0266 (Redfish Protocol) a
   - Parameter descriptions and allowable values support
   - **All action tests passed** - see [stage7_report.md](stage7_report.md)
 
+- ✅ Stage 8: Eventing System (Completed & Tested)
+  - EventService and EventSubscription data models implemented
+  - EventService endpoints with configuration and capabilities
+  - EventSubscriptions collection and individual subscription management
+  - Server-Sent Events (SSE) infrastructure for real-time event delivery
+  - Basic event filtering and routing framework
+  - Comprehensive eventing tests with validation
+  - **All eventing tests passed** - see [stage8_report.md](stage8_report.md)
+
 ### Upcoming Stages
-- Stage 8: Eventing System
 - Stage 9: Asynchronous Operations (Tasks)
 - Stage 10: OEM Extensions and Registries
 - Stage 11: Testing and Conformance Validation
@@ -114,6 +122,12 @@ The server implements the following Redfish API endpoints:
 - `GET /redfish/v1/AccountService` - Account service
 - `GET /redfish/v1/AccountService/Accounts` - Accounts collection
 - `GET /redfish/v1/AccountService/Accounts/{username}` - Individual account
+- `GET /redfish/v1/EventService` - Event service configuration
+- `GET /redfish/v1/EventService/Subscriptions` - Event subscriptions collection
+- `POST /redfish/v1/EventService/Subscriptions` - Create event subscription
+- `GET /redfish/v1/EventService/Subscriptions/{id}` - Individual event subscription
+- `DELETE /redfish/v1/EventService/Subscriptions/{id}` - Delete event subscription
+- `GET /redfish/v1/EventService/SSE` - Server-Sent Events stream
 
 ### Supported Features
 - ✅ HTTP Basic Authentication
@@ -124,6 +138,8 @@ The server implements the following Redfish API endpoints:
 - ✅ TLS 1.3 encryption
 - ✅ Redfish Actions (ComputerSystem.Reset, Manager.Reset)
 - ✅ ActionInfo metadata for action parameters
+- ✅ Redfish Eventing System with subscriptions and SSE
+- ✅ Event filtering and routing framework
 
 ## Technology Choices
 
