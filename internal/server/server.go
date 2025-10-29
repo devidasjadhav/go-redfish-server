@@ -112,6 +112,7 @@ func setupRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/redfish/v1/odata", odataHandler)
 
 	// Session service endpoints
+	mux.HandleFunc("/redfish/v1/SessionService/Sessions/", sessionItemHandler)
 	mux.HandleFunc("/redfish/v1/SessionService/Sessions", sessionsHandler)
 	mux.HandleFunc("/redfish/v1/SessionService/Sessions/Members", sessionsHandler)
 	mux.HandleFunc("/redfish/v1/SessionService", sessionServiceHandler)
@@ -571,6 +572,64 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	}`, token, token, username)
 
 	w.Write([]byte(response))
+}
+
+// sessionItemHandler handles individual session resources
+func sessionItemHandler(w http.ResponseWriter, r *http.Request) {
+	setRedfishHeaders(w)
+	w.Header().Set("Allow", "GET, DELETE")
+
+	// Extract session ID from URL path
+	sessionID := strings.TrimPrefix(r.URL.Path, "/redfish/v1/SessionService/Sessions/")
+
+	// Validate authentication - X-Auth-Token must match session ID
+	authToken := r.Header.Get("X-Auth-Token")
+	if authToken != sessionID {
+		w.Header().Set("WWW-Authenticate", `Basic realm="Redfish Service"`)
+		http.Error(w, `{"error": {"code": "Base.1.0.InsufficientPrivilege", "message": "Invalid session"}}`, http.StatusUnauthorized)
+		return
+	}
+
+	switch r.Method {
+	case "GET":
+		handleGetSession(w, r, sessionID)
+	case "DELETE":
+		handleDeleteSession(w, r, sessionID)
+	default:
+		methodNotAllowed(w, r)
+	}
+}
+
+// handleGetSession returns a specific session
+func handleGetSession(w http.ResponseWriter, r *http.Request, sessionID string) {
+	// Validate session exists
+	authService := auth.GetAuthService()
+	username, valid := authService.ValidateSessionToken(sessionID)
+	if !valid {
+		sendRedfishError(w, "ResourceNotFound", "Session not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	response := fmt.Sprintf(`{
+		"@odata.context": "/redfish/v1/$metadata#Session.Session",
+		"@odata.id": "/redfish/v1/SessionService/Sessions/%s",
+		"@odata.type": "#Session.v1_1_6.Session",
+		"Id": "%s",
+		"Name": "User Session",
+		"UserName": "%s"
+	}`, sessionID, sessionID, username)
+
+	w.Write([]byte(response))
+}
+
+// handleDeleteSession terminates a session
+func handleDeleteSession(w http.ResponseWriter, r *http.Request, sessionID string) {
+	authService := auth.GetAuthService()
+	authService.DeleteSession(sessionID)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // accountServiceHandler handles the AccountService resource
