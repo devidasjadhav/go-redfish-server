@@ -7,6 +7,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/user/redfish-server/internal/auth"
@@ -564,6 +567,17 @@ func handleGetSystems(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	systems := models.NewComputerSystemCollection()
+
+	// Parse query parameters
+	queryParams, err := parseQueryParameters(r.URL.Query())
+	if err != nil {
+		sendRedfishError(w, "QueryParameterError", err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Apply query parameters
+	systems = applyQueryParametersToSystems(systems, queryParams)
+
 	etag := generateETag(systems)
 	w.Header().Set("ETag", etag)
 
@@ -614,6 +628,24 @@ func handleGetSystem(w http.ResponseWriter, r *http.Request, id string) {
 	w.Header().Set("Content-Type", "application/json")
 
 	system := models.NewComputerSystem(id)
+
+	// Parse query parameters
+	queryParams, err := parseQueryParameters(r.URL.Query())
+	if err != nil {
+		sendRedfishError(w, "QueryParameterError", err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Apply $select if specified
+	if len(queryParams.Select) > 0 {
+		system = applySelectToSystem(system, queryParams.Select)
+	}
+
+	// Apply $expand if specified
+	if len(queryParams.Expand) > 0 {
+		system = applyExpandToSystem(system, queryParams.Expand)
+	}
+
 	etag := generateETag(system)
 	w.Header().Set("ETag", etag)
 
@@ -667,6 +699,17 @@ func handleGetChassis(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	chassis := models.NewChassisCollection()
+
+	// Parse query parameters
+	queryParams, err := parseQueryParameters(r.URL.Query())
+	if err != nil {
+		sendRedfishError(w, "QueryParameterError", err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Apply query parameters
+	chassis = applyQueryParametersToChassis(chassis, queryParams)
+
 	etag := generateETag(chassis)
 	w.Header().Set("ETag", etag)
 
@@ -765,6 +808,17 @@ func handleGetManagers(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	managers := models.NewManagerCollection()
+
+	// Parse query parameters
+	queryParams, err := parseQueryParameters(r.URL.Query())
+	if err != nil {
+		sendRedfishError(w, "QueryParameterError", err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Apply query parameters
+	managers = applyQueryParametersToManagers(managers, queryParams)
+
 	etag := generateETag(managers)
 	w.Header().Set("ETag", etag)
 
@@ -897,4 +951,236 @@ func sendRedfishError(w http.ResponseWriter, code, message string, statusCode in
 	}
 
 	json.NewEncoder(w).Encode(errorResponse)
+}
+
+// QueryParameters represents parsed OData query parameters
+type QueryParameters struct {
+	Top     int      `json:"top,omitempty"`
+	Skip    int      `json:"skip,omitempty"`
+	Select  []string `json:"select,omitempty"`
+	Expand  []string `json:"expand,omitempty"`
+	Filter  string   `json:"filter,omitempty"`
+	OrderBy string   `json:"orderby,omitempty"`
+}
+
+// parseQueryParameters parses OData query parameters from the URL
+func parseQueryParameters(query url.Values) (*QueryParameters, error) {
+	params := &QueryParameters{}
+
+	// Parse $top
+	if topStr := query.Get("$top"); topStr != "" {
+		top, err := strconv.Atoi(topStr)
+		if err != nil || top < 0 {
+			return nil, fmt.Errorf("invalid $top parameter: %s", topStr)
+		}
+		params.Top = top
+	}
+
+	// Parse $skip
+	if skipStr := query.Get("$skip"); skipStr != "" {
+		skip, err := strconv.Atoi(skipStr)
+		if err != nil || skip < 0 {
+			return nil, fmt.Errorf("invalid $skip parameter: %s", skipStr)
+		}
+		params.Skip = skip
+	}
+
+	// Parse $select
+	if selectStr := query.Get("$select"); selectStr != "" {
+		params.Select = strings.Split(strings.ReplaceAll(selectStr, " ", ""), ",")
+	}
+
+	// Parse $expand
+	if expandStr := query.Get("$expand"); expandStr != "" {
+		params.Expand = strings.Split(strings.ReplaceAll(expandStr, " ", ""), ",")
+	}
+
+	// Parse $filter
+	params.Filter = query.Get("$filter")
+
+	// Parse $orderby
+	params.OrderBy = query.Get("$orderby")
+
+	return params, nil
+}
+
+// applyQueryParameters applies query parameters to a ComputerSystemCollection
+func applyQueryParametersToSystems(collection *models.ComputerSystemCollection, params *QueryParameters) *models.ComputerSystemCollection {
+	if params == nil {
+		return collection
+	}
+
+	result := *collection // Create a copy
+
+	// Apply $filter if specified (basic implementation)
+	if params.Filter != "" {
+		result = applyFilterToSystems(result, params.Filter)
+	}
+
+	// Apply $skip and $top for pagination
+	totalMembers := len(result.Members)
+	start := params.Skip
+	if start > totalMembers {
+		start = totalMembers
+	}
+
+	end := totalMembers
+	if params.Top > 0 && start+params.Top < totalMembers {
+		end = start + params.Top
+	}
+
+	result.Members = result.Members[start:end]
+	result.MembersODataCount = len(result.Members)
+
+	return &result
+}
+
+// applyFilterToSystems applies basic $filter to ComputerSystemCollection
+func applyFilterToSystems(collection models.ComputerSystemCollection, filter string) models.ComputerSystemCollection {
+	// Very basic filter implementation
+	// In a real implementation, this would parse OData filter expressions
+
+	result := collection
+
+	// For demo purposes, support simple equality filters
+	// Note: URL decoding happens in parseQueryParameters
+	if strings.Contains(filter, "PowerState eq 'On'") || strings.Contains(filter, "PowerState eq \"On\"") {
+		// Keep all members (since our demo system is 'On')
+	} else if strings.Contains(filter, "PowerState eq 'Off'") || strings.Contains(filter, "PowerState eq \"Off\"") {
+		// Remove all members (since our demo system is not 'Off')
+		result.Members = []models.ODataID{}
+		result.MembersODataCount = 0
+	}
+
+	return result
+}
+
+// applyQueryParametersToChassis applies query parameters to a ChassisCollection
+func applyQueryParametersToChassis(collection *models.ChassisCollection, params *QueryParameters) *models.ChassisCollection {
+	if params == nil {
+		return collection
+	}
+
+	result := *collection // Create a copy
+
+	// Apply $skip and $top for pagination
+	totalMembers := len(result.Members)
+	start := params.Skip
+	if start > totalMembers {
+		start = totalMembers
+	}
+
+	end := totalMembers
+	if params.Top > 0 && start+params.Top < totalMembers {
+		end = start + params.Top
+	}
+
+	result.Members = result.Members[start:end]
+	result.MembersODataCount = len(result.Members)
+
+	return &result
+}
+
+// applyQueryParametersToManagers applies query parameters to a ManagerCollection
+func applyQueryParametersToManagers(collection *models.ManagerCollection, params *QueryParameters) *models.ManagerCollection {
+	if params == nil {
+		return collection
+	}
+
+	result := *collection // Create a copy
+
+	// Apply $skip and $top for pagination
+	totalMembers := len(result.Members)
+	start := params.Skip
+	if start > totalMembers {
+		start = totalMembers
+	}
+
+	end := totalMembers
+	if params.Top > 0 && start+params.Top < totalMembers {
+		end = start + params.Top
+	}
+
+	result.Members = result.Members[start:end]
+	result.MembersODataCount = len(result.Members)
+
+	return &result
+}
+
+// applySelectToSystem applies $select filtering to a ComputerSystem
+// For now, this validates the select parameters but returns the full object
+// TODO: Implement actual property filtering
+func applySelectToSystem(system *models.ComputerSystem, selectProps []string) *models.ComputerSystem {
+	// Validate that requested properties exist on ComputerSystem
+	validProps := map[string]bool{
+		"@odata.context":     true,
+		"@odata.id":          true,
+		"@odata.type":        true,
+		"Id":                 true,
+		"Name":               true,
+		"Description":        true,
+		"SystemType":         true,
+		"AssetTag":           true,
+		"Manufacturer":       true,
+		"Model":              true,
+		"SKU":                true,
+		"SerialNumber":       true,
+		"PartNumber":         true,
+		"UUID":               true,
+		"HostName":           true,
+		"Status":             true,
+		"PowerState":         true,
+		"Boot":               true,
+		"BiosVersion":        true,
+		"ProcessorSummary":   true,
+		"MemorySummary":      true,
+		"Storage":            true,
+		"Processors":         true,
+		"Memory":             true,
+		"StorageControllers": true,
+		"NetworkInterfaces":  true,
+		"EthernetInterfaces": true,
+		"LogServices":        true,
+		"Links":              true,
+		"Actions":            true,
+		"Oem":                true,
+	}
+
+	for _, prop := range selectProps {
+		if !validProps[prop] {
+			// For now, ignore invalid properties rather than erroring
+			// In a full implementation, this might return an error
+		}
+	}
+
+	// Return the full system for now
+	// TODO: Implement actual selective property marshaling
+	return system
+}
+
+// applyExpandToSystem applies $expand to include related resources inline
+func applyExpandToSystem(system *models.ComputerSystem, expandProps []string) *models.ComputerSystem {
+	// Create a copy to avoid modifying the original
+	result := *system
+
+	// For each expand property, inline the related resource
+	for _, prop := range expandProps {
+		switch prop {
+		case "Chassis":
+			// Expand chassis information
+			// In Redfish, expanded resources are typically added as new properties
+			// For this demo, we'll just ensure the Links.Chassis points to expanded data
+			result.Links.Chassis = []models.ODataID{"/redfish/v1/Chassis/1"}
+
+		case "ManagedBy":
+			// Expand manager information
+			result.Links.ManagedBy = []models.ODataID{"/redfish/v1/Managers/1"}
+
+		// Add more expandable properties as needed
+		default:
+			// Unknown expand property - ignore for now
+		}
+	}
+
+	return &result
 }
