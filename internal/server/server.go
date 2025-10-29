@@ -594,13 +594,11 @@ func handleUpdateAccountService(w http.ResponseWriter, r *http.Request) {
 // accountsHandler handles the accounts collection
 func accountsHandler(w http.ResponseWriter, r *http.Request) {
 	setRedfishHeaders(w)
-	w.Header().Set("Allow", "GET, POST")
+	w.Header().Set("Allow", "GET")
 
 	switch r.Method {
 	case "GET":
 		handleGetAccounts(w, r)
-	case "POST":
-		handleCreateAccount(w, r)
 	default:
 		methodNotAllowed(w, r)
 	}
@@ -794,13 +792,11 @@ func handleGetRole(w http.ResponseWriter, r *http.Request, id string) {
 // systemsHandler handles the computer systems collection
 func systemsHandler(w http.ResponseWriter, r *http.Request) {
 	setRedfishHeaders(w)
-	w.Header().Set("Allow", "GET, POST")
+	w.Header().Set("Allow", "GET")
 
 	switch r.Method {
 	case "GET":
 		handleGetSystems(w, r)
-	case "POST":
-		handleCreateSystem(w, r)
 	default:
 		methodNotAllowed(w, r)
 	}
@@ -1080,13 +1076,11 @@ func handleComputerSystemReset(w http.ResponseWriter, r *http.Request, systemId 
 // chassisHandler handles the chassis collection
 func chassisHandler(w http.ResponseWriter, r *http.Request) {
 	setRedfishHeaders(w)
-	w.Header().Set("Allow", "GET, POST")
+	w.Header().Set("Allow", "GET")
 
 	switch r.Method {
 	case "GET":
 		handleGetChassis(w, r)
-	case "POST":
-		handleCreateChassis(w, r)
 	default:
 		methodNotAllowed(w, r)
 	}
@@ -1191,13 +1185,11 @@ func handleDeleteChassis(w http.ResponseWriter, r *http.Request, id string) {
 // managersHandler handles the managers collection
 func managersHandler(w http.ResponseWriter, r *http.Request) {
 	setRedfishHeaders(w)
-	w.Header().Set("Allow", "GET, POST")
+	w.Header().Set("Allow", "GET")
 
 	switch r.Method {
 	case "GET":
 		handleGetManagers(w, r)
-	case "POST":
-		handleCreateManager(w, r)
 	default:
 		methodNotAllowed(w, r)
 	}

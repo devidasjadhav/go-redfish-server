@@ -24,7 +24,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 		}
 
 		// Check if authentication is required for this endpoint
-		if !requiresAuth(r.URL.Path) {
+		if !requiresAuth(r.URL.Path, r.Method) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -56,8 +56,8 @@ func AuthMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// requiresAuth determines if authentication is required for the given path
-func requiresAuth(path string) bool {
+// requiresAuth determines if authentication is required for the given path and method
+func requiresAuth(path, method string) bool {
 	// Public endpoints that don't require authentication
 	publicPaths := []string{
 		"/health",
@@ -66,15 +66,22 @@ func requiresAuth(path string) bool {
 		"/redfish/v1/",
 		"/redfish/v1/$metadata",
 		"/redfish/v1/odata",
-		"/redfish/v1/SessionService",
-		"/redfish/v1/SessionService/Sessions",
-		"/redfish/v1/SessionService/Sessions/Members",
 	}
 
 	for _, publicPath := range publicPaths {
 		if path == publicPath {
 			return false
 		}
+	}
+
+	// Session creation (POST) is public, but GET to sessions requires auth
+	if path == "/redfish/v1/SessionService/Sessions" {
+		return method != "POST"
+	}
+
+	// SessionService info requires auth
+	if path == "/redfish/v1/SessionService" {
+		return true
 	}
 
 	// All other endpoints require authentication
