@@ -558,7 +558,7 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("X-Auth-Token", token)
-	w.Header().Set("Location", "/redfish/v1/SessionService/Sessions/"+token)
+	w.Header().Set("Location", "https://"+r.Host+"/redfish/v1/SessionService/Sessions/"+token)
 	w.WriteHeader(http.StatusCreated)
 
 	response := fmt.Sprintf(`{
