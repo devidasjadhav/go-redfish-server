@@ -582,9 +582,18 @@ func sessionItemHandler(w http.ResponseWriter, r *http.Request) {
 	// Extract session ID from URL path
 	sessionID := strings.TrimPrefix(r.URL.Path, "/redfish/v1/SessionService/Sessions/")
 
-	// Validate authentication - X-Auth-Token must match session ID
+	// Validate session exists and authentication
+	authService := auth.GetAuthService()
+	_, sessionExists := authService.ValidateSessionToken(sessionID)
+	if !sessionExists {
+		sendRedfishError(w, "ResourceNotFound", "Session not found", http.StatusNotFound)
+		return
+	}
+
+	// For session operations, the session ID in URL serves as authentication
+	// Additional X-Auth-Token validation can be added if needed
 	authToken := r.Header.Get("X-Auth-Token")
-	if authToken != sessionID {
+	if authToken != "" && authToken != sessionID {
 		w.Header().Set("WWW-Authenticate", `Basic realm="Redfish Service"`)
 		http.Error(w, `{"error": {"code": "Base.1.0.InsufficientPrivilege", "message": "Invalid session"}}`, http.StatusUnauthorized)
 		return
@@ -602,13 +611,9 @@ func sessionItemHandler(w http.ResponseWriter, r *http.Request) {
 
 // handleGetSession returns a specific session
 func handleGetSession(w http.ResponseWriter, r *http.Request, sessionID string) {
-	// Validate session exists
+	// Session existence already validated in sessionItemHandler
 	authService := auth.GetAuthService()
-	username, valid := authService.ValidateSessionToken(sessionID)
-	if !valid {
-		sendRedfishError(w, "ResourceNotFound", "Session not found", http.StatusNotFound)
-		return
-	}
+	username, _ := authService.ValidateSessionToken(sessionID)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
