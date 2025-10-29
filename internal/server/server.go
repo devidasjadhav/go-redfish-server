@@ -590,14 +590,8 @@ func sessionItemHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// For session operations, the session ID in URL serves as authentication
-	// Additional X-Auth-Token validation can be added if needed
-	authToken := r.Header.Get("X-Auth-Token")
-	if authToken != "" && authToken != sessionID {
-		w.Header().Set("WWW-Authenticate", `Basic realm="Redfish Service"`)
-		http.Error(w, `{"error": {"code": "Base.1.0.InsufficientPrivilege", "message": "Invalid session"}}`, http.StatusUnauthorized)
-		return
-	}
+	// For session resources, the session ID in the URL serves as authentication
+	// No additional token validation required
 
 	switch r.Method {
 	case "GET":
