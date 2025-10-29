@@ -92,7 +92,7 @@ This plan outlines a multi-stage implementation of a Redfish-compliant server in
 - [x] Server handles graceful shutdown
 
 ## Stage 3: Authentication and Authorization
-**Status:** In Progress  
+**Status:** Completed & Tested  
 **Priority:** High  
 **Dependencies:** Stage 2  
 **Estimated Time:** 3-4 days
@@ -135,7 +135,7 @@ This plan outlines a multi-stage implementation of a Redfish-compliant server in
 - [ ] Session timeout and cleanup
 
 ## Stage 4: Core Resource Models and Data Structures
-**Status:** Not Started  
+**Status:** In Progress  
 **Priority:** High  
 **Dependencies:** Stage 1  
 **Estimated Time:** 4-5 days

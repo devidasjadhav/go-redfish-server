@@ -4,7 +4,7 @@ A Redfish-compliant server implementation following DSP0266 (Redfish Protocol) a
 
 ## Project Status
 
-**Current Stage:** Stage 3 - Authentication and Authorization (In Progress)
+**Current Stage:** Stage 4 - Core Resource Models and Data Structures (In Progress)
 
 ### Completed Stages
 - ✅ Stage 1: Project Setup and Architecture Planning (Completed)
@@ -25,6 +25,15 @@ A Redfish-compliant server implementation following DSP0266 (Redfish Protocol) a
   - Graceful shutdown handling with context cancellation
   - Comprehensive unit tests and integration tests added
   - **All tests passed** - see [stage2_report.md](stage2_report.md)
+
+- ✅ Stage 3: Authentication and Authorization (Completed & Tested)
+  - HTTP Basic Authentication implemented
+  - Redfish Session Service with token management
+  - Account Service with user enumeration
+  - Role-based access control for protected endpoints
+  - Session persistence and validation
+  - TLS-secured authentication traffic
+  - **All authentication tests passed** - see [stage3_report.md](stage3_report.md)
 
 ### Upcoming Stages
 - Stage 2: Core HTTP Server and TLS Implementation
